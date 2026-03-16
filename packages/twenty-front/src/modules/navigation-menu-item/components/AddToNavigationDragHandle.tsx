@@ -5,7 +5,7 @@ import { IconGripVertical, type IconComponent } from 'twenty-ui/display';
 import { ThemeContext, themeCssVariables } from 'twenty-ui/theme-constants';
 
 import { NavigationMenuItemStyleIcon } from '@/navigation-menu-item/components/NavigationMenuItemStyleIcon';
-import { NavigationMenuItemType } from '@/navigation-menu-item/constants/NavigationMenuItemType';
+import { NavigationMenuItemType } from 'twenty-shared/types';
 import type { AddToNavigationDragPayload } from '@/navigation-menu-item/types/add-to-navigation-drag-payload';
 import { getEffectiveNavigationMenuItemColor } from '@/navigation-menu-item/utils/getEffectiveNavigationMenuItemColor';
 
@@ -86,7 +86,7 @@ export const AddToNavigationDragHandle = ({
       ? payload.iconColor
       : undefined;
   const effectiveColor = getEffectiveNavigationMenuItemColor(
-    { itemType: payload.type as NavigationMenuItemType },
+    { type: payload.type as NavigationMenuItemType },
     objectColor,
   );
   const hasBackgroundColor =

@@ -1,12 +1,11 @@
 import { CommandMenuItem } from '@/command-menu/components/CommandMenuItem';
-import { NavigationMenuItemType } from '@/navigation-menu-item/constants/NavigationMenuItemType';
+import { NavigationMenuItemType } from 'twenty-shared/types';
 import { useNavigationMenuItemsDraftState } from '@/navigation-menu-item/hooks/useNavigationMenuItemsDraftState';
 import { useOpenAddItemToFolderPage } from '@/navigation-menu-item/hooks/useOpenAddItemToFolderPage';
 import { useSelectedNavigationMenuItemEditItem } from '@/navigation-menu-item/hooks/useSelectedNavigationMenuItemEditItem';
 import { useSelectedNavigationMenuItemEditItemLabel } from '@/navigation-menu-item/hooks/useSelectedNavigationMenuItemEditItemLabel';
 import { useUpdateLinkInDraft } from '@/navigation-menu-item/hooks/useUpdateLinkInDraft';
 import { selectedNavigationMenuItemInEditModeState } from '@/navigation-menu-item/states/selectedNavigationMenuItemInEditModeState';
-import { type ProcessedNavigationMenuItem } from '@/navigation-menu-item/types/processed-navigation-menu-item';
 import { parseThemeColor } from '@/navigation-menu-item/utils/parseThemeColor';
 import { SidePanelGroup } from '@/side-panel/components/SidePanelGroup';
 import { SidePanelList } from '@/side-panel/components/SidePanelList';
@@ -46,7 +45,7 @@ export const SidePanelNavigationMenuItemEditPage = () => {
   );
   const { selectedItemLabel } = useSelectedNavigationMenuItemEditItemLabel();
   const { selectedItem } = useSelectedNavigationMenuItemEditItem();
-  const selectedItemType = selectedItem?.itemType ?? null;
+  const selectedItemType = selectedItem?.type ?? null;
 
   const { navigateToSidePanelSubPage } = useSidePanelSubPageHistory();
   const openFolderPicker = () =>
@@ -67,10 +66,7 @@ export const SidePanelNavigationMenuItemEditPage = () => {
   const { workspaceNavigationMenuItems } = useNavigationMenuItemsDraftState();
 
   const handleAddItemToFolder = () => {
-    if (
-      !selectedItem ||
-      selectedItem.itemType !== NavigationMenuItemType.FOLDER
-    ) {
+    if (!selectedItem || selectedItem.type !== NavigationMenuItemType.FOLDER) {
       return;
     }
     const folderItemCount = workspaceNavigationMenuItems.filter(
@@ -106,7 +102,7 @@ export const SidePanelNavigationMenuItemEditPage = () => {
           onAddBefore={onAddBefore}
           onAddAfter={onAddAfter}
           showColorOption={isDefined(selectedItem)}
-          selectedItem={selectedItem as ProcessedNavigationMenuItem | undefined}
+          selectedItem={selectedItem}
         />
       );
     case NavigationMenuItemType.VIEW:
@@ -125,7 +121,7 @@ export const SidePanelNavigationMenuItemEditPage = () => {
     case NavigationMenuItemType.LINK:
       if (
         isDefined(selectedItem) &&
-        selectedItem.itemType === NavigationMenuItemType.LINK
+        selectedItem.type === NavigationMenuItemType.LINK
       ) {
         return (
           <SidePanelEditLinkItemView

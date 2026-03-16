@@ -1,8 +1,9 @@
 import { useObjectNavItemColor } from '@/navigation-menu-item/hooks/useObjectNavItemColor';
 import { navigationMenuItemsSelector } from '@/navigation-menu-item/states/navigationMenuItemsSelector';
-import { type ProcessedNavigationMenuItem } from '@/navigation-menu-item/types/processed-navigation-menu-item';
 import { getEffectiveNavigationMenuItemColor } from '@/navigation-menu-item/utils/getEffectiveNavigationMenuItemColor';
+import { getNavigationMenuItemObjectNameSingular } from '@/navigation-menu-item/utils/getNavigationMenuItemObjectNameSingular';
 import { parseThemeColor } from '@/navigation-menu-item/utils/parseThemeColor';
+import { objectMetadataItemsState } from '@/object-metadata/states/objectMetadataItemsState';
 import { SidePanelGroup } from '@/side-panel/components/SidePanelGroup';
 import { SidePanelList } from '@/side-panel/components/SidePanelList';
 import { SidePanelEditColorOption } from '@/side-panel/pages/navigation-menu-item/components/SidePanelEditColorOption';
@@ -12,14 +13,16 @@ import {
 } from '@/side-panel/pages/navigation-menu-item/components/SidePanelEditOrganizeActions';
 import { getOrganizeActionsSelectableItemIds } from '@/side-panel/pages/navigation-menu-item/utils/getOrganizeActionsSelectableItemIds';
 import { useAtomStateValue } from '@/ui/utilities/state/jotai/hooks/useAtomStateValue';
+import { viewsSelector } from '@/views/states/selectors/viewsSelector';
 import { useLingui } from '@lingui/react/macro';
 import { isNonEmptyString } from '@sniptt/guards';
 import { isDefined } from 'twenty-shared/utils';
+import { type NavigationMenuItem } from '~/generated-metadata/graphql';
 
 type SidePanelEditObjectViewBaseProps = OrganizeActionsProps & {
   onOpenFolderPicker: () => void;
   showColorOption?: boolean;
-  selectedItem?: ProcessedNavigationMenuItem | null;
+  selectedItem?: NavigationMenuItem | null;
 };
 
 export const SidePanelEditObjectViewBase = ({
@@ -36,9 +39,18 @@ export const SidePanelEditObjectViewBase = ({
 }: SidePanelEditObjectViewBaseProps) => {
   const { t } = useLingui();
   const selectableItemIds = getOrganizeActionsSelectableItemIds(true);
-  const objectColor = useObjectNavItemColor(
-    selectedItem?.objectNameSingular ?? '',
-  );
+  const objectMetadataItems = useAtomStateValue(objectMetadataItemsState);
+  const views = useAtomStateValue(viewsSelector);
+
+  const objectNameSingular = isDefined(selectedItem)
+    ? (getNavigationMenuItemObjectNameSingular(
+        selectedItem,
+        objectMetadataItems,
+        views,
+      ) ?? '')
+    : '';
+
+  const objectColor = useObjectNavItemColor(objectNameSingular);
 
   const navigationMenuItems = useAtomStateValue(navigationMenuItemsSelector);
   const persistedNavItem = navigationMenuItems.find(

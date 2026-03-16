@@ -1,15 +1,15 @@
-import { NavigationMenuItemType } from '@/navigation-menu-item/constants/NavigationMenuItemType';
-import { type ProcessedNavigationMenuItem } from '@/navigation-menu-item/utils/sortNavigationMenuItems';
+import { NavigationMenuItemType } from 'twenty-shared/types';
 
 export const isLocationMatchingNavigationMenuItem = (
   currentPath: string,
   currentViewPath: string,
-  navigationMenuItem: Pick<ProcessedNavigationMenuItem, 'itemType' | 'link'>,
+  navigationMenuItemType: NavigationMenuItemType,
+  computedLink: string,
 ) => {
   const isViewBasedItem =
-    navigationMenuItem.itemType === NavigationMenuItemType.VIEW ||
-    navigationMenuItem.itemType === NavigationMenuItemType.OBJECT;
+    navigationMenuItemType === NavigationMenuItemType.VIEW ||
+    navigationMenuItemType === NavigationMenuItemType.OBJECT;
   return isViewBasedItem
-    ? navigationMenuItem.link === currentViewPath
-    : navigationMenuItem.link === currentPath;
+    ? computedLink === currentViewPath
+    : computedLink === currentPath;
 };
