@@ -4,7 +4,7 @@ import { type ThemeColor, MAIN_COLOR_NAMES } from '@ui/theme';
 import { themeCssVariables } from '@ui/theme-constants';
 
 const parseThemeColor = (color: string): ThemeColor =>
-  (MAIN_COLOR_NAMES as string[]).includes(color)
+  (MAIN_COLOR_NAMES as readonly string[]).includes(color)
     ? (color as ThemeColor)
     : 'gray';
 
