@@ -156,6 +156,7 @@ export class McpProtocolService {
     };
   }
 
+  // Returns null for JSON-RPC notifications (no id), which require no response body
   async handleMCPCoreQuery(
     { id, method, params }: JsonRpc,
     {
@@ -169,14 +170,15 @@ export class McpProtocolService {
       userWorkspaceId?: string;
       apiKey: ApiKeyEntity | undefined;
     },
-  ): Promise<Record<string, unknown>> {
+  ): Promise<Record<string, unknown> | null> {
     try {
-      if (method === 'initialize') {
-        return this.handleInitialize(id);
+      // JSON-RPC notifications have no id and expect no response
+      if (!isDefined(id)) {
+        return null;
       }
 
-      if (method === 'notifications/initialized') {
-        return wrapJsonRpcResponse(id, { result: {} });
+      if (method === 'initialize') {
+        return this.handleInitialize(id);
       }
 
       if (method === 'ping') {
@@ -239,10 +241,20 @@ export class McpProtocolService {
 
       return this.mcpToolExecutorService.handleToolsListing(id, toolSet);
     } catch (error) {
-      return wrapJsonRpcResponse(id, {
+      if (error instanceof HttpException) {
+        return wrapJsonRpcResponse(id ?? 0, {
+          error: {
+            code: JSON_RPC_ERROR_CODE.SERVER_ERROR,
+            message: error.message || 'Request failed',
+          },
+        });
+      }
+
+      return wrapJsonRpcResponse(id ?? 0, {
         error: {
           code: JSON_RPC_ERROR_CODE.INTERNAL_ERROR,
-          message: error.message || 'Internal server error',
+          message:
+            error instanceof Error ? error.message : 'Internal server error',
         },
       });
     }

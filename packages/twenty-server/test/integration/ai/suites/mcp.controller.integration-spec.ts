@@ -47,6 +47,14 @@ describe('MCP Controller (integration)', () => {
       });
   });
 
+  it('should return 202 with no body for notifications/initialized (no id)', async () => {
+    await postMcp({ jsonrpc: '2.0', method: 'notifications/initialized' })
+      .expect(202)
+      .expect((res) => {
+        expect(res.body).toEqual({});
+      });
+  });
+
   it('should validate request body and return 400 for invalid payload (missing method)', async () => {
     await postMcp({})
       .expect(400)

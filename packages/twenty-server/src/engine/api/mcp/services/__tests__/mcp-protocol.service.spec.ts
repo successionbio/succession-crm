@@ -197,11 +197,10 @@ describe('McpProtocolService', () => {
       });
     });
 
-    it('should handle notifications/initialized', async () => {
+    it('should return null for notifications (no id)', async () => {
       const mockRequest: JsonRpc = {
         jsonrpc: '2.0',
         method: 'notifications/initialized',
-        id: '123',
       };
 
       const result = await service.handleMCPCoreQuery(mockRequest, {
@@ -210,11 +209,7 @@ describe('McpProtocolService', () => {
         apiKey: undefined,
       });
 
-      expect(result).toEqual({
-        id: '123',
-        jsonrpc: '2.0',
-        result: {},
-      });
+      expect(result).toBeNull();
     });
 
     it('should build a ToolSet with exactly 5 tools and pass it to executor for tools/call', async () => {
@@ -397,7 +392,7 @@ describe('McpProtocolService', () => {
       );
     });
 
-    it('should wrap errors with JSON-RPC internal error code', async () => {
+    it('should wrap unexpected errors with INTERNAL_ERROR code', async () => {
       userRoleService.getRoleIdForUserWorkspace.mockResolvedValue(mockRoleId);
 
       mcpToolExecutorService.handleToolCall.mockRejectedValue(
@@ -423,6 +418,34 @@ describe('McpProtocolService', () => {
         error: {
           code: JSON_RPC_ERROR_CODE.INTERNAL_ERROR,
           message: 'Something went wrong',
+        },
+      });
+    });
+
+    it('should wrap HttpException errors with SERVER_ERROR code', async () => {
+      userRoleService.getRoleIdForUserWorkspace.mockRejectedValue(
+        new HttpException('Role ID missing', HttpStatus.FORBIDDEN),
+      );
+
+      const mockRequest: JsonRpc = {
+        jsonrpc: '2.0',
+        method: 'tools/call',
+        params: { name: 'execute_tool', arguments: {} },
+        id: '123',
+      };
+
+      const result = await service.handleMCPCoreQuery(mockRequest, {
+        workspace: mockWorkspace,
+        userWorkspaceId: mockUserWorkspaceId,
+        apiKey: undefined,
+      });
+
+      expect(result).toEqual({
+        id: '123',
+        jsonrpc: '2.0',
+        error: {
+          code: JSON_RPC_ERROR_CODE.SERVER_ERROR,
+          message: 'Role ID missing',
         },
       });
     });

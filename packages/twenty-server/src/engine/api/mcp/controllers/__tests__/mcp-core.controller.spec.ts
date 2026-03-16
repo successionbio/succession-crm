@@ -73,6 +73,13 @@ describe('McpCoreController', () => {
     const mockUser = { id: 'user-1' } as UserEntity;
     const mockUserWorkspaceId = 'user-workspace-1';
     const mockApiKey = { id: 'api-key-1' } as ApiKeyEntity;
+    const mockRes = {
+      status: jest.fn().mockReturnThis(),
+    } as unknown as import('express').Response;
+
+    beforeEach(() => {
+      (mockRes.status as jest.Mock).mockClear();
+    });
 
     it('should call mcpProtocolService.handleMCPCoreQuery with correct parameters', async () => {
       const mockRequest: JsonRpc = {
@@ -99,6 +106,7 @@ describe('McpCoreController', () => {
         mockApiKey,
         mockUser,
         mockUserWorkspaceId,
+        mockRes,
       );
 
       expect(mcpProtocolService.handleMCPCoreQuery).toHaveBeenCalledWith(
@@ -143,6 +151,7 @@ describe('McpCoreController', () => {
         mockApiKey,
         mockUser,
         mockUserWorkspaceId,
+        mockRes,
       );
 
       expect(mcpProtocolService.handleMCPCoreQuery).toHaveBeenCalledWith(
@@ -186,6 +195,7 @@ describe('McpCoreController', () => {
         mockApiKey,
         mockUser,
         mockUserWorkspaceId,
+        mockRes,
       );
 
       expect(mcpProtocolService.handleMCPCoreQuery).toHaveBeenCalledWith(
@@ -198,6 +208,27 @@ describe('McpCoreController', () => {
         },
       );
       expect(result).toEqual(mockResponse);
+    });
+
+    it('should return 202 with no body for notifications', async () => {
+      const mockRequest: JsonRpc = {
+        jsonrpc: '2.0',
+        method: 'notifications/initialized',
+      };
+
+      mcpProtocolService.handleMCPCoreQuery.mockResolvedValue(null);
+
+      const result = await controller.handleMcpCore(
+        mockRequest,
+        mockWorkspace,
+        mockApiKey,
+        mockUser,
+        mockUserWorkspaceId,
+        mockRes,
+      );
+
+      expect(result).toBeUndefined();
+      expect(mockRes.status).toHaveBeenCalledWith(202);
     });
 
     it('should handle API key auth without user', async () => {
@@ -225,6 +256,7 @@ describe('McpCoreController', () => {
         mockApiKey,
         undefined,
         undefined,
+        mockRes,
       );
 
       expect(mcpProtocolService.handleMCPCoreQuery).toHaveBeenCalledWith(

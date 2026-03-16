@@ -4,11 +4,15 @@ import {
   HttpCode,
   HttpStatus,
   Post,
+  Res,
   UseFilters,
   UseGuards,
   UsePipes,
   ValidationPipe,
 } from '@nestjs/common';
+
+import { type Response } from 'express';
+import { isDefined } from 'twenty-shared/utils';
 
 import { JsonRpc } from 'src/engine/api/mcp/dtos/json-rpc';
 import { McpAuthGuard } from 'src/engine/api/mcp/guards/mcp-auth.guard';
@@ -45,12 +49,22 @@ export class McpCoreController {
     @AuthApiKey() apiKey: ApiKeyEntity | undefined,
     @AuthUser({ allowUndefined: true }) user: UserEntity | undefined,
     @AuthUserWorkspaceId() userWorkspaceId: string | undefined,
+    @Res({ passthrough: true }) res: Response,
   ) {
-    return await this.mcpProtocolService.handleMCPCoreQuery(body, {
+    const result = await this.mcpProtocolService.handleMCPCoreQuery(body, {
       workspace,
       userId: user?.id,
       userWorkspaceId,
       apiKey,
     });
+
+    // JSON-RPC notifications (no id) expect no response body
+    if (!isDefined(result)) {
+      res.status(HttpStatus.ACCEPTED);
+
+      return;
+    }
+
+    return result;
   }
 }
