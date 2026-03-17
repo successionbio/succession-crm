@@ -1177,6 +1177,35 @@ export interface BillingUpdate {
     __typename: 'BillingUpdate'
 }
 
+export interface BillingUsageBreakdownItem {
+    key: Scalars['String']
+    creditsUsed: Scalars['Float']
+    __typename: 'BillingUsageBreakdownItem'
+}
+
+export interface BillingUsageTimeSeries {
+    date: Scalars['String']
+    creditsUsed: Scalars['Float']
+    __typename: 'BillingUsageTimeSeries'
+}
+
+export interface BillingUserDailyUsage {
+    userWorkspaceId: Scalars['String']
+    dailyUsage: BillingUsageTimeSeries[]
+    __typename: 'BillingUserDailyUsage'
+}
+
+export interface BillingAnalytics {
+    usageByUser: BillingUsageBreakdownItem[]
+    usageByResource: BillingUsageBreakdownItem[]
+    usageByExecutionType: BillingUsageBreakdownItem[]
+    timeSeries: BillingUsageTimeSeries[]
+    periodStart: Scalars['DateTime']
+    periodEnd: Scalars['DateTime']
+    userDailyUsage?: BillingUserDailyUsage
+    __typename: 'BillingAnalytics'
+}
+
 export interface EnterpriseLicenseInfoDTO {
     isValid: Scalars['Boolean']
     licensee?: Scalars['String']
@@ -1315,7 +1344,7 @@ export interface FeatureFlag {
     __typename: 'FeatureFlag'
 }
 
-export type FeatureFlagKey = 'IS_UNIQUE_INDEXES_ENABLED' | 'IS_JSON_FILTER_ENABLED' | 'IS_AI_ENABLED' | 'IS_APPLICATION_ENABLED' | 'IS_MARKETPLACE_ENABLED' | 'IS_RECORD_PAGE_LAYOUT_EDITING_ENABLED' | 'IS_PUBLIC_DOMAIN_ENABLED' | 'IS_EMAILING_DOMAIN_ENABLED' | 'IS_DASHBOARD_V2_ENABLED' | 'IS_ATTACHMENT_MIGRATED' | 'IS_NOTE_TARGET_MIGRATED' | 'IS_TASK_TARGET_MIGRATED' | 'IS_ROW_LEVEL_PERMISSION_PREDICATES_ENABLED' | 'IS_JUNCTION_RELATIONS_ENABLED' | 'IS_COMMAND_MENU_ITEM_ENABLED' | 'IS_NAVIGATION_MENU_ITEM_ENABLED' | 'IS_DATE_TIME_WHOLE_DAY_FILTER_ENABLED' | 'IS_NAVIGATION_MENU_ITEM_EDITING_ENABLED' | 'IS_DRAFT_EMAIL_ENABLED' | 'IS_RICH_TEXT_V1_MIGRATED'
+export type FeatureFlagKey = 'IS_UNIQUE_INDEXES_ENABLED' | 'IS_JSON_FILTER_ENABLED' | 'IS_AI_ENABLED' | 'IS_APPLICATION_ENABLED' | 'IS_MARKETPLACE_ENABLED' | 'IS_RECORD_PAGE_LAYOUT_EDITING_ENABLED' | 'IS_PUBLIC_DOMAIN_ENABLED' | 'IS_EMAILING_DOMAIN_ENABLED' | 'IS_DASHBOARD_V2_ENABLED' | 'IS_ATTACHMENT_MIGRATED' | 'IS_NOTE_TARGET_MIGRATED' | 'IS_TASK_TARGET_MIGRATED' | 'IS_ROW_LEVEL_PERMISSION_PREDICATES_ENABLED' | 'IS_JUNCTION_RELATIONS_ENABLED' | 'IS_COMMAND_MENU_ITEM_ENABLED' | 'IS_NAVIGATION_MENU_ITEM_ENABLED' | 'IS_DATE_TIME_WHOLE_DAY_FILTER_ENABLED' | 'IS_NAVIGATION_MENU_ITEM_EDITING_ENABLED' | 'IS_DRAFT_EMAIL_ENABLED' | 'IS_USAGE_ANALYTICS_ENABLED' | 'IS_RICH_TEXT_V1_MIGRATED'
 
 export interface SSOIdentityProvider {
     id: Scalars['UUID']
@@ -2602,6 +2631,7 @@ export interface Query {
     billingPortalSession: BillingSession
     listPlans: BillingPlan[]
     getMeteredProductsUsage: BillingMeteredProductUsage[]
+    getBillingAnalytics: BillingAnalytics
     enterprisePortalSession?: Scalars['String']
     enterpriseCheckoutSession?: Scalars['String']
     enterpriseSubscriptionStatus?: EnterpriseSubscriptionStatusDTO
@@ -2683,7 +2713,7 @@ export type SortDirection = 'ASC' | 'DESC'
 /** Sort Nulls Options */
 export type SortNulls = 'NULLS_FIRST' | 'NULLS_LAST'
 
-export type EventLogTable = 'WORKSPACE_EVENT' | 'PAGEVIEW' | 'OBJECT_EVENT'
+export type EventLogTable = 'WORKSPACE_EVENT' | 'PAGEVIEW' | 'OBJECT_EVENT' | 'BILLING_EVENT'
 
 export interface Mutation {
     addQueryToEventStream: Scalars['Boolean']
@@ -4115,6 +4145,39 @@ export interface BillingUpdateGenqlSelection{
     currentBillingSubscription?: BillingSubscriptionGenqlSelection
     /** All billing subscriptions */
     billingSubscriptions?: BillingSubscriptionGenqlSelection
+    __typename?: boolean | number
+    __scalar?: boolean | number
+}
+
+export interface BillingUsageBreakdownItemGenqlSelection{
+    key?: boolean | number
+    creditsUsed?: boolean | number
+    __typename?: boolean | number
+    __scalar?: boolean | number
+}
+
+export interface BillingUsageTimeSeriesGenqlSelection{
+    date?: boolean | number
+    creditsUsed?: boolean | number
+    __typename?: boolean | number
+    __scalar?: boolean | number
+}
+
+export interface BillingUserDailyUsageGenqlSelection{
+    userWorkspaceId?: boolean | number
+    dailyUsage?: BillingUsageTimeSeriesGenqlSelection
+    __typename?: boolean | number
+    __scalar?: boolean | number
+}
+
+export interface BillingAnalyticsGenqlSelection{
+    usageByUser?: BillingUsageBreakdownItemGenqlSelection
+    usageByResource?: BillingUsageBreakdownItemGenqlSelection
+    usageByExecutionType?: BillingUsageBreakdownItemGenqlSelection
+    timeSeries?: BillingUsageTimeSeriesGenqlSelection
+    periodStart?: boolean | number
+    periodEnd?: boolean | number
+    userDailyUsage?: BillingUserDailyUsageGenqlSelection
     __typename?: boolean | number
     __scalar?: boolean | number
 }
@@ -5662,6 +5725,7 @@ export interface QueryGenqlSelection{
     billingPortalSession?: (BillingSessionGenqlSelection & { __args?: {returnUrlPath?: (Scalars['String'] | null)} })
     listPlans?: BillingPlanGenqlSelection
     getMeteredProductsUsage?: BillingMeteredProductUsageGenqlSelection
+    getBillingAnalytics?: (BillingAnalyticsGenqlSelection & { __args?: {input?: (BillingAnalyticsInput | null)} })
     enterprisePortalSession?: { __args: {returnUrlPath?: (Scalars['String'] | null)} } | boolean | number
     enterpriseCheckoutSession?: { __args: {billingInterval?: (Scalars['String'] | null)} } | boolean | number
     enterpriseSubscriptionStatus?: EnterpriseSubscriptionStatusDTOGenqlSelection
@@ -5753,6 +5817,8 @@ id: Scalars['ID']}
 export interface AgentIdInput {
 /** The id of the agent. */
 id: Scalars['UUID']}
+
+export interface BillingAnalyticsInput {periodStart?: (Scalars['DateTime'] | null),periodEnd?: (Scalars['DateTime'] | null),userWorkspaceId?: (Scalars['String'] | null)}
 
 export interface GetApiKeyInput {id: Scalars['UUID']}
 
@@ -7023,6 +7089,38 @@ export interface LogicFunctionLogsInput {applicationId?: (Scalars['UUID'] | null
     export const isBillingUpdate = (obj?: { __typename?: any } | null): obj is BillingUpdate => {
       if (!obj?.__typename) throw new Error('__typename is missing in "isBillingUpdate"')
       return BillingUpdate_possibleTypes.includes(obj.__typename)
+    }
+    
+
+
+    const BillingUsageBreakdownItem_possibleTypes: string[] = ['BillingUsageBreakdownItem']
+    export const isBillingUsageBreakdownItem = (obj?: { __typename?: any } | null): obj is BillingUsageBreakdownItem => {
+      if (!obj?.__typename) throw new Error('__typename is missing in "isBillingUsageBreakdownItem"')
+      return BillingUsageBreakdownItem_possibleTypes.includes(obj.__typename)
+    }
+    
+
+
+    const BillingUsageTimeSeries_possibleTypes: string[] = ['BillingUsageTimeSeries']
+    export const isBillingUsageTimeSeries = (obj?: { __typename?: any } | null): obj is BillingUsageTimeSeries => {
+      if (!obj?.__typename) throw new Error('__typename is missing in "isBillingUsageTimeSeries"')
+      return BillingUsageTimeSeries_possibleTypes.includes(obj.__typename)
+    }
+    
+
+
+    const BillingUserDailyUsage_possibleTypes: string[] = ['BillingUserDailyUsage']
+    export const isBillingUserDailyUsage = (obj?: { __typename?: any } | null): obj is BillingUserDailyUsage => {
+      if (!obj?.__typename) throw new Error('__typename is missing in "isBillingUserDailyUsage"')
+      return BillingUserDailyUsage_possibleTypes.includes(obj.__typename)
+    }
+    
+
+
+    const BillingAnalytics_possibleTypes: string[] = ['BillingAnalytics']
+    export const isBillingAnalytics = (obj?: { __typename?: any } | null): obj is BillingAnalytics => {
+      if (!obj?.__typename) throw new Error('__typename is missing in "isBillingAnalytics"')
+      return BillingAnalytics_possibleTypes.includes(obj.__typename)
     }
     
 
@@ -8696,6 +8794,7 @@ export const enumFeatureFlagKey = {
    IS_DATE_TIME_WHOLE_DAY_FILTER_ENABLED: 'IS_DATE_TIME_WHOLE_DAY_FILTER_ENABLED' as const,
    IS_NAVIGATION_MENU_ITEM_EDITING_ENABLED: 'IS_NAVIGATION_MENU_ITEM_EDITING_ENABLED' as const,
    IS_DRAFT_EMAIL_ENABLED: 'IS_DRAFT_EMAIL_ENABLED' as const,
+   IS_USAGE_ANALYTICS_ENABLED: 'IS_USAGE_ANALYTICS_ENABLED' as const,
    IS_RICH_TEXT_V1_MIGRATED: 'IS_RICH_TEXT_V1_MIGRATED' as const
 }
 
@@ -8942,7 +9041,8 @@ export const enumSortNulls = {
 export const enumEventLogTable = {
    WORKSPACE_EVENT: 'WORKSPACE_EVENT' as const,
    PAGEVIEW: 'PAGEVIEW' as const,
-   OBJECT_EVENT: 'OBJECT_EVENT' as const
+   OBJECT_EVENT: 'OBJECT_EVENT' as const,
+   BILLING_EVENT: 'BILLING_EVENT' as const
 }
 
 export const enumAnalyticsType = {

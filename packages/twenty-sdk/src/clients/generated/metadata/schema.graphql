@@ -1459,6 +1459,31 @@ type BillingUpdate {
   billingSubscriptions: [BillingSubscription!]!
 }
 
+type BillingUsageBreakdownItem {
+  key: String!
+  creditsUsed: Float!
+}
+
+type BillingUsageTimeSeries {
+  date: String!
+  creditsUsed: Float!
+}
+
+type BillingUserDailyUsage {
+  userWorkspaceId: String!
+  dailyUsage: [BillingUsageTimeSeries!]!
+}
+
+type BillingAnalytics {
+  usageByUser: [BillingUsageBreakdownItem!]!
+  usageByResource: [BillingUsageBreakdownItem!]!
+  usageByExecutionType: [BillingUsageBreakdownItem!]!
+  timeSeries: [BillingUsageTimeSeries!]!
+  periodStart: DateTime!
+  periodEnd: DateTime!
+  userDailyUsage: BillingUserDailyUsage
+}
+
 type EnterpriseLicenseInfoDTO {
   isValid: Boolean!
   licensee: String
@@ -1612,6 +1637,7 @@ enum FeatureFlagKey {
   IS_DATE_TIME_WHOLE_DAY_FILTER_ENABLED
   IS_NAVIGATION_MENU_ITEM_EDITING_ENABLED
   IS_DRAFT_EMAIL_ENABLED
+  IS_USAGE_ANALYTICS_ENABLED
   IS_RICH_TEXT_V1_MIGRATED
 }
 
@@ -2981,6 +3007,7 @@ type Query {
   billingPortalSession(returnUrlPath: String): BillingSession!
   listPlans: [BillingPlan!]!
   getMeteredProductsUsage: [BillingMeteredProductUsage!]!
+  getBillingAnalytics(input: BillingAnalyticsInput): BillingAnalytics!
   enterprisePortalSession(returnUrlPath: String): String
   enterpriseCheckoutSession(billingInterval: String): String
   enterpriseSubscriptionStatus: EnterpriseSubscriptionStatusDTO
@@ -3079,6 +3106,12 @@ input AgentIdInput {
   id: UUID!
 }
 
+input BillingAnalyticsInput {
+  periodStart: DateTime
+  periodEnd: DateTime
+  userWorkspaceId: String
+}
+
 input GetApiKeyInput {
   id: UUID!
 }
@@ -3144,6 +3177,7 @@ enum EventLogTable {
   WORKSPACE_EVENT
   PAGEVIEW
   OBJECT_EVENT
+  BILLING_EVENT
 }
 
 input EventLogFiltersInput {
