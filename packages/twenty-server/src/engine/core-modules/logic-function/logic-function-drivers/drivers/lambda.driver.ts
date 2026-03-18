@@ -15,6 +15,7 @@ import {
   type ListLayerVersionsCommandInput,
   LogType,
   PublishLayerVersionCommand,
+  ResourceConflictException,
   ResourceNotFoundException,
   waitUntilFunctionActiveV2,
 } from '@aws-sdk/client-lambda';
@@ -355,7 +356,13 @@ export class LambdaDriver implements LogicFunctionDriver {
         MemorySize: YARN_INSTALL_LAMBDA_MEMORY_MB,
       };
 
-      await lambdaClient.send(new CreateFunctionCommand(params));
+      try {
+        await lambdaClient.send(new CreateFunctionCommand(params));
+      } catch (error) {
+        if (!(error instanceof ResourceConflictException)) {
+          throw error;
+        }
+      }
     } finally {
       await temporaryDirManager.clean();
     }
@@ -444,7 +451,13 @@ export class LambdaDriver implements LogicFunctionDriver {
         MemorySize: BUILDER_LAMBDA_MEMORY_MB,
       };
 
-      await lambdaClient.send(new CreateFunctionCommand(params));
+      try {
+        await lambdaClient.send(new CreateFunctionCommand(params));
+      } catch (error) {
+        if (!(error instanceof ResourceConflictException)) {
+          throw error;
+        }
+      }
     } finally {
       await temporaryDirManager.clean();
     }
@@ -725,7 +738,14 @@ export class LambdaDriver implements LogicFunctionDriver {
 
     const command = new CreateFunctionCommand(params);
 
-    await (await this.getLambdaClient()).send(command);
+    try {
+      await (await this.getLambdaClient()).send(command);
+    } catch (error) {
+      if (!(error instanceof ResourceConflictException)) {
+        throw error;
+      }
+      // Function was concurrently created by another worker — safe to proceed
+    }
 
     await temporaryDirManager.clean();
   }
