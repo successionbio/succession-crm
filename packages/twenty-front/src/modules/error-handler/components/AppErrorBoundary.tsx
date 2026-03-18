@@ -22,6 +22,15 @@ export const AppErrorBoundary = ({
   resetOnLocationChange = true,
 }: AppErrorBoundaryProps) => {
   const handleError = async (error: Error | CustomError, info: ErrorInfo) => {
+    const isViteStaleChunkLazyLoadingError =
+      checkIfItsAViteStaleChunkLazyLoadingError(error);
+
+    if (isViteStaleChunkLazyLoadingError) {
+      window.location.reload();
+
+      return;
+    }
+
     try {
       const { captureException } = await import('@sentry/react');
       captureException(error, (scope) => {
@@ -35,13 +44,6 @@ export const AppErrorBoundary = ({
     } catch (sentryError) {
       // oxlint-disable-next-line no-console
       console.error('Failed to capture exception with Sentry:', sentryError);
-    }
-
-    const isViteStaleChunkLazyLoadingError =
-      checkIfItsAViteStaleChunkLazyLoadingError(error);
-
-    if (isViteStaleChunkLazyLoadingError) {
-      window.location.reload();
     }
   };
 
