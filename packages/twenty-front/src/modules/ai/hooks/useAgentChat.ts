@@ -113,6 +113,12 @@ export const useAgentChat = (
       headers: () => ({
         Authorization: `Bearer ${getTokenPair()?.accessOrWorkspaceAgnosticToken.token}`,
       }),
+      prepareReconnectToStreamRequest: ({ id }) => ({
+        url: `${REST_API_BASE_URL}/agent-chat/${id}/stream`,
+        headers: {
+          Authorization: `Bearer ${getTokenPair()?.accessOrWorkspaceAgnosticToken.token}`,
+        },
+      }),
       fetch: async (input, init) => {
         const response = await fetch(input, init);
 
@@ -122,7 +128,6 @@ export const useAgentChat = (
           return retriedResponse ?? response;
         }
 
-        // For non-2xx responses, parse the error body and throw with the code
         if (!response.ok) {
           const errorBody = await response.json().catch(() => ({}));
           const error = new Error(
@@ -140,7 +145,8 @@ export const useAgentChat = (
       },
     }),
     messages: uiMessages,
-    id: `${currentAIChatThread}-${uiMessages.length}`,
+    id: currentAIChatThread,
+    resume: true,
     experimental_throttle: 100,
     onFinish: ({ message }) => {
       type UsageMetadata = {

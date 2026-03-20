@@ -1,7 +1,11 @@
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 
-import { createUIMessageStream, pipeUIMessageStreamToResponse } from 'ai';
+import {
+  createUIMessageStream,
+  generateId,
+  pipeUIMessageStreamToResponse,
+} from 'ai';
 import { type Response } from 'express';
 import {
   type CodeExecutionData,
@@ -23,6 +27,7 @@ import { toDisplayCredits } from 'src/engine/core-modules/usage/utils/to-display
 import { type AIModelConfig } from 'src/engine/metadata-modules/ai/ai-models/types/ai-model-config.type';
 import { AgentChatThreadEntity } from 'src/engine/metadata-modules/ai/ai-chat/entities/agent-chat-thread.entity';
 
+import { AgentChatResumableStreamService } from './agent-chat-resumable-stream.service';
 import { AgentChatService } from './agent-chat.service';
 import { ChatExecutionService } from './chat-execution.service';
 
@@ -43,6 +48,7 @@ export class AgentChatStreamingService {
     private readonly threadRepository: Repository<AgentChatThreadEntity>,
     private readonly agentChatService: AgentChatService,
     private readonly chatExecutionService: ChatExecutionService,
+    private readonly resumableStreamService: AgentChatResumableStreamService,
   ) {}
 
   async streamAgentChat({
@@ -212,6 +218,7 @@ export class AgentChatStreamingService {
                     `"totalOutputCredits" + ${streamUsage.outputCredits}`,
                   contextWindowTokens: modelConfig.contextWindowTokens,
                   conversationSize: lastStepConversationSize,
+                  activeStreamId: null,
                 });
 
                 const generatedTitle = await titlePromise;
@@ -233,10 +240,17 @@ export class AgentChatStreamingService {
       pipeUIMessageStreamToResponse({
         stream: uiStream,
         response,
-        // Consume the stream independently so onFinish fires even if
-        // the client disconnects (e.g., page refresh mid-stream)
-        consumeSseStream: ({ stream }) => {
-          stream.pipeTo(new WritableStream()).catch(() => {});
+        consumeSseStream: async ({ stream }) => {
+          const streamId = generateId();
+
+          await this.resumableStreamService.createResumableStream(
+            streamId,
+            () => stream,
+          );
+
+          await this.threadRepository.update(thread.id, {
+            activeStreamId: streamId,
+          });
         },
       });
     } catch (error) {

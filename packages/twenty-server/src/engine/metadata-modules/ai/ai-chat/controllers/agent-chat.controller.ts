@@ -1,6 +1,8 @@
 import {
   Body,
   Controller,
+  Get,
+  Param,
   Post,
   Res,
   UseFilters,
@@ -11,6 +13,10 @@ import { PermissionFlagType } from 'twenty-shared/constants';
 
 import type { Response } from 'express';
 import type { ExtendedUIMessage } from 'twenty-shared/ai';
+import { isDefined } from 'twenty-shared/utils';
+import { InjectRepository } from '@nestjs/typeorm';
+import type { Repository } from 'typeorm';
+import { UI_MESSAGE_STREAM_HEADERS } from 'ai';
 
 import { RestApiExceptionFilter } from 'src/engine/api/rest/rest-api-exception.filter';
 import {
@@ -33,7 +39,9 @@ import {
 } from 'src/engine/metadata-modules/ai/ai-agent/agent.exception';
 import { AgentRestApiExceptionFilter } from 'src/engine/metadata-modules/ai/ai-agent/filters/agent-api-exception.filter';
 import type { BrowsingContextType } from 'src/engine/metadata-modules/ai/ai-agent/types/browsingContext.type';
+import { AgentChatResumableStreamService } from 'src/engine/metadata-modules/ai/ai-chat/services/agent-chat-resumable-stream.service';
 import { AgentChatStreamingService } from 'src/engine/metadata-modules/ai/ai-chat/services/agent-chat-streaming.service';
+import { AgentChatThreadEntity } from 'src/engine/metadata-modules/ai/ai-chat/entities/agent-chat-thread.entity';
 import { AiModelRegistryService } from 'src/engine/metadata-modules/ai/ai-models/services/ai-model-registry.service';
 
 @Controller('rest/agent-chat')
@@ -46,9 +54,12 @@ import { AiModelRegistryService } from 'src/engine/metadata-modules/ai/ai-models
 export class AgentChatController {
   constructor(
     private readonly agentStreamingService: AgentChatStreamingService,
+    private readonly resumableStreamService: AgentChatResumableStreamService,
     private readonly billingService: BillingService,
     private readonly twentyConfigService: TwentyConfigService,
     private readonly aiModelRegistryService: AiModelRegistryService,
+    @InjectRepository(AgentChatThreadEntity)
+    private readonly threadRepository: Repository<AgentChatThreadEntity>,
   ) {}
 
   @Post('stream')
@@ -102,5 +113,38 @@ export class AgentChatController {
       workspace,
       response,
     });
+  }
+
+  @Get(':threadId/stream')
+  @UseGuards(SettingsPermissionGuard(PermissionFlagType.AI))
+  async resumeAgentChatStream(
+    @Param('threadId') threadId: string,
+    @AuthUserWorkspaceId() userWorkspaceId: string,
+    @Res() response: Response,
+  ) {
+    const thread = await this.threadRepository.findOne({
+      where: { id: threadId, userWorkspaceId },
+    });
+
+    if (!isDefined(thread) || !isDefined(thread.activeStreamId)) {
+      response.status(204).end();
+
+      return;
+    }
+
+    const resumedNodeReadable =
+      await this.resumableStreamService.resumeExistingStreamAsNodeReadable(
+        thread.activeStreamId,
+      );
+
+    if (!isDefined(resumedNodeReadable)) {
+      response.status(204).end();
+
+      return;
+    }
+
+    response.writeHead(200, UI_MESSAGE_STREAM_HEADERS);
+
+    resumedNodeReadable.pipe(response);
   }
 }
