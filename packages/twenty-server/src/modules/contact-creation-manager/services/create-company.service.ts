@@ -9,7 +9,7 @@ import {
 } from 'twenty-shared/types';
 import {
   isDefined,
-  lowercaseUrlOriginAndRemoveTrailingSlash,
+  normalizeUrlOrigin,
 } from 'twenty-shared/utils';
 import { type DeepPartial, ILike } from 'typeorm';
 
@@ -71,7 +71,7 @@ export class CreateCompanyService {
         const companiesWithoutTrailingSlash = companies.map((company) => ({
           ...company,
           domainName: company.domainName
-            ? lowercaseUrlOriginAndRemoveTrailingSlash(company.domainName)
+            ? normalizeUrlOrigin(company.domainName)
             : undefined,
         }));
 

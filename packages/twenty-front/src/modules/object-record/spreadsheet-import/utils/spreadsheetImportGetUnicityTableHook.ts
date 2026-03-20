@@ -13,7 +13,7 @@ import { FieldMetadataType } from 'twenty-shared/types';
 import {
   getUniqueConstraintsFields,
   isDefined,
-  lowercaseUrlOriginAndRemoveTrailingSlash,
+  normalizeUrlOrigin,
 } from 'twenty-shared/utils';
 
 type Column = {
@@ -104,7 +104,7 @@ const getUniqueValues = (
             .primaryLinkUrl,
         )
       ) {
-        return lowercaseUrlOriginAndRemoveTrailingSlash(
+        return normalizeUrlOrigin(
           row?.[columnName]?.toString().trim() || '',
         );
       }

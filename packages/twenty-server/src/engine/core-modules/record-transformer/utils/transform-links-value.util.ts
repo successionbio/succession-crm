@@ -3,7 +3,7 @@ import isEmpty from 'lodash.isempty';
 import { type LinkMetadataNullable } from 'twenty-shared/types';
 import {
   isDefined,
-  lowercaseUrlOriginAndRemoveTrailingSlash,
+  normalizeUrlOrigin,
   parseJson,
 } from 'twenty-shared/utils';
 
@@ -45,14 +45,14 @@ export const transformLinksValue = (
   const processedSecondaryLinks = secondaryLinks?.map((link) => ({
     ...link,
     url: isDefined(link.url)
-      ? lowercaseUrlOriginAndRemoveTrailingSlash(link.url)
+      ? normalizeUrlOrigin(link.url)
       : link.url,
   }));
 
   return {
     ...value,
     primaryLinkUrl: isDefined(primaryLinkUrl)
-      ? lowercaseUrlOriginAndRemoveTrailingSlash(primaryLinkUrl)
+      ? normalizeUrlOrigin(primaryLinkUrl)
       : primaryLinkUrl,
     primaryLinkLabel,
     secondaryLinks: isEmpty(processedSecondaryLinks)

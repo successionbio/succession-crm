@@ -1,7 +1,9 @@
 import { getURLSafely } from '@/utils/getURLSafely';
 import { isDefined } from '@/utils/validation';
 
-export const lowercaseUrlOriginAndRemoveTrailingSlash = (rawUrl: string) => {
+// Lowercases the URL origin (scheme + host) and removes a trailing slash.
+// Preserves the raw path, query, and hash without decoding percent-encoded sequences.
+export const normalizeUrlOrigin = (rawUrl: string) => {
   const url = getURLSafely(rawUrl);
 
   if (!isDefined(url)) {
