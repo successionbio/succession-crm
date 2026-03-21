@@ -20,7 +20,7 @@ export const TIME_BEFORE_DEACTIVATING_LOW_DETAILS = 20;
 export const NUMBER_OF_EVENTS_TO_COMPUTE_AVERAGE = 10;
 
 const TIME_BETWEEN_TWO_SCROLL_HANDLING = 20;
-const LAST_SCROLL_DEBOUNCE_TIME = 300;
+const LAST_SCROLL_DEBOUNCE_TIME = 100;
 
 export const RecordTableVirtualizedRowTreadmillEffect = () => {
   const { scrollWrapperHTMLElement } = useScrollWrapperHTMLElement();
@@ -195,12 +195,13 @@ export const RecordTableVirtualizedRowTreadmillEffect = () => {
           SCROLL_SPEED_THRESHOLD_IN_ROWS_PER_SECOND_TO_DEACTIVATE_LOW_DETAILS
         ) {
           deactivateLowDetailsDebounced();
-
-          triggerFetchPages();
         }
-      } else {
-        triggerFetchPages();
       }
+
+      // Always trigger fetch during scrolling so data is prefetched
+      // before the user reaches unloaded rows. The fetch itself is
+      // debounced and skips when lowDetailsActivated is true.
+      triggerFetchPages();
     },
     [
       lastScrollMeasurementsCallbackState,
