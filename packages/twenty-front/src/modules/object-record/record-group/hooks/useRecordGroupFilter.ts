@@ -19,9 +19,7 @@ export const useRecordGroupFilter = (fields: FieldMetadataItem[]) => {
       );
 
       if (!fieldMetadataItem) {
-        throw new Error(
-          `Field metadata item with id ${recordIndexGroupFieldMetadataItem?.id} not found`,
-        );
+        return {};
       }
 
       if (!isDefined(currentRecordGroupDefinition.value)) {
