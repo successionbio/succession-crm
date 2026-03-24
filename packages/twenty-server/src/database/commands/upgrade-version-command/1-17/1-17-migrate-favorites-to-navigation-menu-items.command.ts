@@ -284,7 +284,7 @@ export class MigrateFavoritesToNavigationMenuItemsCommand extends ActiveOrSuspen
           folderId: null,
           folderUniversalIdentifier: null,
           name: favoriteFolder.name,
-          position: favoriteFolder.position,
+          position: Math.round(favoriteFolder.position),
           workspaceId,
           applicationId: workspaceCustomApplicationId,
           applicationUniversalIdentifier:
@@ -316,7 +316,7 @@ export class MigrateFavoritesToNavigationMenuItemsCommand extends ActiveOrSuspen
           folderId: null,
           folderUniversalIdentifier: null,
           name: favoriteFolder.name,
-          position: favoriteFolder.position,
+          position: Math.round(favoriteFolder.position),
           workspaceId,
           applicationId: workspaceCustomApplicationId,
           applicationUniversalIdentifier:
@@ -521,7 +521,7 @@ export class MigrateFavoritesToNavigationMenuItemsCommand extends ActiveOrSuspen
           folderId,
           folderUniversalIdentifier: folderId,
           name: null,
-          position: favorite.position,
+          position: Math.round(favorite.position),
           workspaceId,
           applicationId,
           applicationUniversalIdentifier,
@@ -566,7 +566,7 @@ export class MigrateFavoritesToNavigationMenuItemsCommand extends ActiveOrSuspen
         folderId,
         folderUniversalIdentifier: folderId,
         name: null,
-        position: favorite.position,
+        position: Math.round(favorite.position),
         workspaceId,
         applicationId: workspaceCustomApplicationId,
         applicationUniversalIdentifier:
