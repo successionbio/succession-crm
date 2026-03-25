@@ -36,8 +36,7 @@ export const FrontComponentWidgetRenderer = ({
   const isPageLayoutInEditMode = useIsPageLayoutInEditMode();
   const { layoutMode } = usePageLayoutContentContext();
 
-  const isVerticalList =
-    layoutMode === PageLayoutTabLayoutMode.VERTICAL_LIST;
+  const isVerticalList = layoutMode === PageLayoutTabLayoutMode.VERTICAL_LIST;
 
   const configuration = widget.configuration;
 
