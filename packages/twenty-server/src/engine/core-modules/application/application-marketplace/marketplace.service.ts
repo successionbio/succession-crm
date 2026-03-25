@@ -1,13 +1,15 @@
 import { Injectable, Logger } from '@nestjs/common';
 
 import axios from 'axios';
+import { type Manifest } from 'twenty-shared/application';
 import { isDefined } from 'twenty-shared/utils';
 import { z } from 'zod';
 
 import { MarketplaceAppDTO } from 'src/engine/core-modules/application/application-marketplace/dtos/marketplace-app.dto';
+import { buildRegistryCdnUrl } from 'src/engine/core-modules/application/application-marketplace/utils/build-registry-cdn-url.util';
 import { TwentyConfigService } from 'src/engine/core-modules/twenty-config/twenty-config.service';
 
-const npmSearchResultSchema = z.object({
+const registrySearchResultSchema = z.object({
   objects: z.array(
     z.object({
       package: z.object({
@@ -28,7 +30,39 @@ export class MarketplaceService {
 
   constructor(private readonly twentyConfigService: TwentyConfigService) {}
 
-  async fetchAppsFromNpmRegistry(): Promise<MarketplaceAppDTO[]> {
+  async fetchManifestFromRegistryCdn(
+    packageName: string,
+    version: string,
+  ): Promise<Manifest | null> {
+    const cdnBaseUrl = this.twentyConfigService.get('APP_REGISTRY_CDN_URL');
+    const url = buildRegistryCdnUrl({
+      cdnBaseUrl,
+      packageName,
+      version,
+      filePath: 'manifest.json',
+    });
+
+    try {
+      const { data } = await axios.get(url, {
+        headers: { 'User-Agent': 'Twenty-Marketplace' },
+        timeout: 5_000,
+      });
+
+      if (!data?.application) {
+        return null;
+      }
+
+      return data as Manifest;
+    } catch {
+      this.logger.debug(
+        `Could not fetch manifest from CDN for ${packageName}@${version}`,
+      );
+
+      return null;
+    }
+  }
+
+  async fetchAppsFromRegistry(): Promise<MarketplaceAppDTO[]> {
     const registryUrl = this.twentyConfigService.get('APP_REGISTRY_URL');
 
     try {
@@ -40,11 +74,11 @@ export class MarketplaceService {
         },
       );
 
-      const parsed = npmSearchResultSchema.safeParse(data);
+      const parsed = registrySearchResultSchema.safeParse(data);
 
       if (!parsed.success) {
         this.logger.warn(
-          `Unexpected npm search response shape: ${parsed.error.message}`,
+          `Unexpected registry search response shape: ${parsed.error.message}`,
         );
 
         return [];
@@ -86,7 +120,7 @@ export class MarketplaceService {
         .filter(isDefined);
     } catch (error) {
       this.logger.warn(
-        `Failed to fetch apps from npm registry: ${error instanceof Error ? error.message : String(error)}`,
+        `Failed to fetch apps from registry ${registryUrl}: ${error instanceof Error ? error.message : String(error)}`,
       );
 
       return [];
