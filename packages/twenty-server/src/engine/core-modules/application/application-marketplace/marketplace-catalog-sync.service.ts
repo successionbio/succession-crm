@@ -86,7 +86,7 @@ export class MarketplaceCatalogSyncService {
 
         await this.applicationRegistrationService.upsertFromCatalog({
           universalIdentifier: app.id,
-          name: app.name,
+          name: manifest?.application.displayName ?? app.name,
           description:
             manifest?.application.aboutDescription ?? app.description,
           author: manifest?.application.author ?? app.author,

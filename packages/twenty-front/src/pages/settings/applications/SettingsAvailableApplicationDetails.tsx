@@ -46,7 +46,6 @@ const StyledHeader = styled.div`
   display: flex;
   gap: ${themeCssVariables.spacing[4]};
   justify-content: space-between;
-  margin-bottom: ${themeCssVariables.spacing[4]};
 `;
 
 const StyledHeaderLeft = styled.div`
@@ -480,7 +479,6 @@ export const SettingsAvailableApplicationDetails = () => {
 
   return (
     <SubMenuTopBarContainer
-      title={application.name}
       links={[
         {
           children: t`Workspace`,
