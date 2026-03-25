@@ -27,9 +27,9 @@ import { assertDestroyOneArgs } from 'src/engine/api/graphql/direct-execution/ut
 import { assertFindDuplicatesArgs } from 'src/engine/api/graphql/direct-execution/utils/assert-find-duplicates-args.util';
 import { assertFindManyArgs } from 'src/engine/api/graphql/direct-execution/utils/assert-find-many-args.util';
 import { assertFindOneArgs } from 'src/engine/api/graphql/direct-execution/utils/assert-find-one-args.util';
+import { assertGraphqlSelectedFields } from 'src/engine/api/graphql/direct-execution/utils/assert-graphql-selected-fields.util';
 import { assertGroupByArgs } from 'src/engine/api/graphql/direct-execution/utils/assert-group-by-args.util';
 import { assertMergeManyArgs } from 'src/engine/api/graphql/direct-execution/utils/assert-merge-many-args.util';
-import { assertGraphqlSelectedFields } from 'src/engine/api/graphql/direct-execution/utils/assert-graphql-selected-fields.util';
 import { assertRestoreManyArgs } from 'src/engine/api/graphql/direct-execution/utils/assert-restore-many-args.util';
 import { assertRestoreOneArgs } from 'src/engine/api/graphql/direct-execution/utils/assert-restore-one-args.util';
 import { assertUpdateManyArgs } from 'src/engine/api/graphql/direct-execution/utils/assert-update-many-args.util';
@@ -37,10 +37,10 @@ import { assertUpdateOneArgs } from 'src/engine/api/graphql/direct-execution/uti
 import { type ResolverNameMapEntry } from 'src/engine/api/graphql/direct-execution/utils/build-resolver-name-map.util';
 import { buildWorkspaceSchemaBuilderContext } from 'src/engine/api/graphql/direct-execution/utils/build-workspace-schema-builder-context.util';
 import { extractArgumentsFromAst } from 'src/engine/api/graphql/direct-execution/utils/extract-arguments-from-ast.util';
-import { graphQLBackfillNullsFromSelectedFields } from 'src/engine/api/graphql/direct-execution/utils/graphql-backfill-nulls-from-selected-fields.util';
 import { graphQLBuildFragmentMap } from 'src/engine/api/graphql/direct-execution/utils/graphql-build-fragment-map.util';
 import { graphQLBuildPartialResolveInfo } from 'src/engine/api/graphql/direct-execution/utils/graphql-build-partial-resolve-info.util';
 import { graphQLExtractTopLevelFields } from 'src/engine/api/graphql/direct-execution/utils/graphql-extract-top-level-fields.util';
+import { graphQLFormatResultFromSelectedFields } from 'src/engine/api/graphql/direct-execution/utils/graphql-format-result-from-selected-fields.util';
 import { workspaceQueryRunnerGraphqlApiExceptionHandler } from 'src/engine/api/graphql/workspace-query-runner/utils/workspace-query-runner-graphql-api-exception-handler.util';
 import { RESOLVER_METHOD_NAMES } from 'src/engine/api/graphql/workspace-resolver-builder/constants/resolver-method-names';
 import { CreateManyResolverFactory } from 'src/engine/api/graphql/workspace-resolver-builder/factories/create-many-resolver.factory';
@@ -215,12 +215,23 @@ export class DirectExecutionService {
             workspaceSchemaBuilderContext,
           });
 
-          graphQLBackfillNullsFromSelectedFields(
+          const formattedResult = graphQLFormatResultFromSelectedFields(
             result,
-            graphqlFields(graphqlPartialResolveInfo as GraphQLResolveInfo),
+            graphqlFields(
+              graphqlPartialResolveInfo as GraphQLResolveInfo,
+              {},
+              { excludedFields: [] },
+            ),
+            workspaceSchemaBuilderContext.flatObjectMetadata.nameSingular,
+            {
+              flatObjectMetadataMaps,
+              flatFieldMetadataMaps,
+              objectIdByNameSingular,
+              method: entry.method,
+            },
           );
 
-          return { responseKey, result };
+          return { responseKey, result: formattedResult };
         }),
       );
 
