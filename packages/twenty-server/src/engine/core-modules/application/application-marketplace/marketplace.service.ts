@@ -2,12 +2,18 @@ import { Injectable, Logger } from '@nestjs/common';
 
 import axios from 'axios';
 import { type Manifest } from 'twenty-shared/application';
-import { isDefined } from 'twenty-shared/utils';
 import { z } from 'zod';
 
-import { MarketplaceAppDTO } from 'src/engine/core-modules/application/application-marketplace/dtos/marketplace-app.dto';
 import { buildRegistryCdnUrl } from 'src/engine/core-modules/application/application-marketplace/utils/build-registry-cdn-url.util';
 import { TwentyConfigService } from 'src/engine/core-modules/twenty-config/twenty-config.service';
+
+export type RegistryPackageInfo = {
+  name: string;
+  version: string;
+  description: string;
+  author: string;
+  websiteUrl?: string;
+};
 
 const registrySearchResultSchema = z.object({
   objects: z.array(
@@ -67,7 +73,7 @@ export class MarketplaceService {
     }
   }
 
-  async fetchAppsFromRegistry(): Promise<MarketplaceAppDTO[]> {
+  async fetchAppsFromRegistry(): Promise<RegistryPackageInfo[]> {
     const registryUrl = this.twentyConfigService.get('APP_REGISTRY_URL');
 
     try {
@@ -89,40 +95,17 @@ export class MarketplaceService {
         return [];
       }
 
-      return parsed.data.objects
-        .map((result) => {
-          const { name, version, description, author, links } = result.package;
-          const twentyKeyword = (result.package.keywords ?? []).find(
-            (keyword) => keyword.startsWith('twenty-uid:'),
-          );
+      return parsed.data.objects.map((result) => {
+        const { name, version, description, author, links } = result.package;
 
-          if (!isDefined(twentyKeyword)) {
-            return null;
-          }
-
-          const universalIdentifier = twentyKeyword.replace('twenty-uid:', '');
-
-          return {
-            id: universalIdentifier,
-            name,
-            description: description ?? '',
-            icon: 'IconApps',
-            version,
-            author: author?.name ?? 'Unknown',
-            category: '',
-            screenshots: [],
-            aboutDescription: description ?? '',
-            providers: [],
-            websiteUrl: links?.homepage ?? links?.npm,
-            objects: [],
-            fields: [],
-            logicFunctions: [],
-            frontComponents: [],
-            sourcePackage: name,
-            isFeatured: false,
-          };
-        })
-        .filter(isDefined);
+        return {
+          name,
+          version,
+          description: description ?? '',
+          author: author?.name ?? 'Unknown',
+          websiteUrl: links?.homepage ?? links?.npm,
+        };
+      });
     } catch (error) {
       this.logger.warn(
         `Failed to fetch apps from registry ${registryUrl}: ${error instanceof Error ? error.message : String(error)}`,

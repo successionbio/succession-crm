@@ -19,7 +19,7 @@ export class MarketplaceCatalogSyncService {
 
   async syncCatalog(): Promise<void> {
     await this.syncCuratedApps();
-    await this.syncNpmApps();
+    await this.syncRegistryApps();
 
     this.logger.log('Marketplace catalog sync completed');
   }
@@ -52,51 +52,57 @@ export class MarketplaceCatalogSyncService {
     }
   }
 
-  private async syncNpmApps(): Promise<void> {
-    const apps = await this.marketplaceService.fetchAppsFromRegistry();
+  private async syncRegistryApps(): Promise<void> {
+    const packages = await this.marketplaceService.fetchAppsFromRegistry();
 
     const curatedIdentifiers = new Set(
       MARKETPLACE_CATALOG_INDEX.map((entry) => entry.universalIdentifier),
     );
 
-    for (const app of apps) {
-      if (curatedIdentifiers.has(app.id)) {
-        continue;
-      }
-
+    for (const pkg of packages) {
       try {
-        const sourcePackage = app.sourcePackage ?? app.name;
-
         const manifest =
           await this.marketplaceService.fetchManifestFromRegistryCdn(
-            sourcePackage,
-            app.version,
+            pkg.name,
+            pkg.version,
           );
+
+        if (!manifest) {
+          this.logger.debug(
+            `Skipping ${pkg.name}: no manifest found on CDN`,
+          );
+          continue;
+        }
+
+        const universalIdentifier =
+          manifest.application.universalIdentifier;
+
+        if (curatedIdentifiers.has(universalIdentifier)) {
+          continue;
+        }
 
         const cdnBaseUrl = this.twentyConfigService.get('APP_REGISTRY_CDN_URL');
 
-        const displayData = manifest
-          ? buildMarketplaceDisplayDataFromManifest({
-              manifest,
-              packageName: sourcePackage,
-              version: app.version,
-              cdnBaseUrl,
-            })
-          : null;
+        const displayData = buildMarketplaceDisplayDataFromManifest({
+          manifest,
+          packageName: pkg.name,
+          version: pkg.version,
+          cdnBaseUrl,
+        });
 
         await this.applicationRegistrationService.upsertFromCatalog({
-          universalIdentifier: app.id,
-          name: manifest?.application.displayName ?? app.name,
+          universalIdentifier,
+          name: manifest.application.displayName ?? pkg.name,
           description:
-            manifest?.application.aboutDescription ?? app.description,
-          author: manifest?.application.author ?? app.author,
+            manifest.application.aboutDescription ?? pkg.description,
+          author: manifest.application.author ?? pkg.author,
           sourceType: ApplicationRegistrationSourceType.NPM,
-          sourcePackage,
-          logoUrl: displayData?.logo ?? null,
+          sourcePackage: pkg.name,
+          logoUrl: displayData.logo ?? null,
           websiteUrl:
-            manifest?.application.websiteUrl ?? app.websiteUrl ?? null,
-          termsUrl: manifest?.application.termsUrl ?? null,
-          latestAvailableVersion: app.version ?? null,
+            manifest.application.websiteUrl ?? pkg.websiteUrl ?? null,
+          termsUrl: manifest.application.termsUrl ?? null,
+          latestAvailableVersion: pkg.version ?? null,
           isListed: true,
           isFeatured: false,
           marketplaceDisplayData: displayData,
@@ -104,7 +110,7 @@ export class MarketplaceCatalogSyncService {
         });
       } catch (error) {
         this.logger.error(
-          `Failed to sync registry app "${app.name}": ${error instanceof Error ? error.message : String(error)}`,
+          `Failed to sync registry app "${pkg.name}": ${error instanceof Error ? error.message : String(error)}`,
         );
       }
     }
