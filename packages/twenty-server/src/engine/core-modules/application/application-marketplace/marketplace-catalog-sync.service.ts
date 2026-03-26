@@ -5,6 +5,7 @@ import { ApplicationRegistrationSourceType } from 'src/engine/core-modules/appli
 import { MARKETPLACE_CATALOG_INDEX } from 'src/engine/core-modules/application/application-marketplace/constants/marketplace-catalog-index.constant';
 import { MarketplaceService } from 'src/engine/core-modules/application/application-marketplace/marketplace.service';
 import { buildRegistryCdnUrl } from 'src/engine/core-modules/application/application-marketplace/utils/build-registry-cdn-url.util';
+import { resolveManifestAssetUrls } from 'src/engine/core-modules/application/application-marketplace/utils/resolve-manifest-asset-urls.util';
 import { TwentyConfigService } from 'src/engine/core-modules/twenty-config/twenty-config.service';
 
 @Injectable()
@@ -77,30 +78,16 @@ export class MarketplaceCatalogSyncService {
 
         const cdnBaseUrl = this.twentyConfigService.get('APP_REGISTRY_CDN_URL');
 
-        // Resolve file paths to CDN URLs in the manifest before storing
-        const manifestWithResolvedUrls = {
-          ...manifest,
-          application: {
-            ...manifest.application,
-            logoUrl: manifest.application.logoUrl
-              ? buildRegistryCdnUrl({
-                  cdnBaseUrl,
-                  packageName: pkg.name,
-                  version: pkg.version,
-                  filePath: manifest.application.logoUrl,
-                })
-              : undefined,
-            screenshots: (manifest.application.screenshots ?? []).map(
-              (filePath) =>
-                buildRegistryCdnUrl({
-                  cdnBaseUrl,
-                  packageName: pkg.name,
-                  version: pkg.version,
-                  filePath,
-                }),
-            ),
-          },
-        };
+        const manifestWithResolvedUrls = resolveManifestAssetUrls(
+          manifest,
+          (filePath) =>
+            buildRegistryCdnUrl({
+              cdnBaseUrl,
+              packageName: pkg.name,
+              version: pkg.version,
+              filePath,
+            }),
+        );
 
         await this.applicationRegistrationService.upsertFromCatalog({
           universalIdentifier,

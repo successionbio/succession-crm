@@ -4,6 +4,7 @@ import { InjectRepository } from '@nestjs/typeorm';
 import crypto from 'crypto';
 
 import * as bcrypt from 'bcrypt';
+import { type Manifest } from 'twenty-shared/application';
 import { isDefined } from 'twenty-shared/utils';
 import { IsNull, type Repository } from 'typeorm';
 import { v4 } from 'uuid';
@@ -118,16 +119,6 @@ export class ApplicationRegistrationService {
     };
   }
 
-  async isOwnedByWorkspace(id: string, workspaceId: string): Promise<boolean> {
-    const registration = await this.applicationRegistrationRepository.findOne({
-      where: { id },
-      select: ['id', 'ownerWorkspaceId'],
-    });
-
-    return registration?.ownerWorkspaceId === workspaceId;
-  }
-
-  // Global lookup — used by app sync to find existing registrations
   async findOneByUniversalIdentifier(
     universalIdentifier: string,
   ): Promise<ApplicationRegistrationEntity | null> {
@@ -217,6 +208,21 @@ export class ApplicationRegistrationService {
     }
 
     return this.findOneById(id, ownerWorkspaceId);
+  }
+
+  async updateFromManifest(
+    applicationRegistrationId: string,
+    manifest: Manifest,
+  ): Promise<void> {
+    const existing = await this.applicationRegistrationRepository.findOneOrFail(
+      { where: { id: applicationRegistrationId } },
+    );
+
+    await this.applicationRegistrationRepository.save({
+      ...existing,
+      name: manifest.application.displayName,
+      manifest,
+    });
   }
 
   async delete(id: string, ownerWorkspaceId: string): Promise<boolean> {
