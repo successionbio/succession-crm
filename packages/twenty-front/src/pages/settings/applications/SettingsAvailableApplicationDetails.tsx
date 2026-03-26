@@ -432,25 +432,12 @@ export const SettingsAvailableApplicationDetails = () => {
 
             <StyledContentContainer>
               <StyledMainContent>
-                {(aboutDescription || providers.length > 0) && (
+                {aboutDescription && (
                   <Section>
                     {aboutDescription && (
                       <>
                         <StyledSectionTitle>{t`About`}</StyledSectionTitle>
                         <LazyMarkdownRenderer text={aboutDescription} />
-                      </>
-                    )}
-
-                    {providers.length > 0 && (
-                      <>
-                        <StyledSectionTitle>{t`Providers`}</StyledSectionTitle>
-                        <StyledProvidersList>
-                          {providers.map((provider) => (
-                            <StyledProviderItem key={provider}>
-                              {provider}
-                            </StyledProviderItem>
-                          ))}
-                        </StyledProvidersList>
                       </>
                     )}
                   </Section>
@@ -500,6 +487,21 @@ export const SettingsAvailableApplicationDetails = () => {
                     {detail.latestAvailableVersion ?? '0.0.0'}
                   </StyledSidebarValue>
                 </StyledSidebarSection>
+
+                {providers.length > 0 && (
+                  <>
+                    <StyledSidebarSection>
+                      <StyledSidebarLabel>{t`Providers`}</StyledSidebarLabel>
+                      <StyledProvidersList>
+                        {providers.map((provider) => (
+                          <StyledProviderItem key={provider}>
+                            {provider}
+                          </StyledProviderItem>
+                        ))}
+                      </StyledProvidersList>
+                    </StyledSidebarSection>
+                  </>
+                )}
 
                 {(app?.websiteUrl || app?.termsUrl) && (
                   <StyledSidebarSection>
