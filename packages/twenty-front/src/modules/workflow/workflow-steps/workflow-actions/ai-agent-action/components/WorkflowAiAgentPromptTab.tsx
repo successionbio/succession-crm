@@ -72,13 +72,10 @@ export const WorkflowAiAgentPromptTab = ({
       },
     });
 
-    const updatedAgent = response.data?.updateOneAgent;
-
-    if (updatedAgent) {
-      setWorkflowAiAgentActionAgent((previousAgent) =>
-        previousAgent ? { ...previousAgent, ...updatedAgent } : previousAgent,
-      );
-    }
+    setWorkflowAiAgentActionAgent({
+      ...workflowAiAgentActionAgent,
+      ...response.data?.updateOneAgent,
+    });
 
     await updateWorkflowVersionStep({
       workflowVersionId: flow.workflowVersionId,
@@ -104,13 +101,10 @@ export const WorkflowAiAgentPromptTab = ({
       variables: { input: { id: agent.id, modelId } },
     });
 
-    const updatedAgent = response.data?.updateOneAgent;
-
-    if (updatedAgent) {
-      setWorkflowAiAgentActionAgent((previousAgent) =>
-        previousAgent ? { ...previousAgent, ...updatedAgent } : previousAgent,
-      );
-    }
+    setWorkflowAiAgentActionAgent({
+      ...agent,
+      ...response.data?.updateOneAgent,
+    });
   };
 
   const handleModelConfigurationChange = async (
@@ -124,13 +118,10 @@ export const WorkflowAiAgentPromptTab = ({
       },
     });
 
-    const updatedAgent = response.data?.updateOneAgent;
-
-    if (updatedAgent) {
-      setWorkflowAiAgentActionAgent((previousAgent) =>
-        previousAgent ? { ...previousAgent, ...updatedAgent } : previousAgent,
-      );
-    }
+    setWorkflowAiAgentActionAgent({
+      ...agent,
+      ...response.data?.updateOneAgent,
+    });
   };
 
   const handleOutputSchemaChange = (updatedFields: OutputSchemaField[]) => {
