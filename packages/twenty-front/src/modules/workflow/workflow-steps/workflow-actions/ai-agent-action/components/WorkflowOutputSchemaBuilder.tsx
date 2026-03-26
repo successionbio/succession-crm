@@ -8,7 +8,7 @@ import { styled } from '@linaria/react';
 import { t } from '@lingui/core/macro';
 import { type MouseEvent, useState } from 'react';
 import { IconChevronDown, IconPlus, IconX } from 'twenty-ui/display';
-import { LightIconButton } from 'twenty-ui/input';
+import { AnimatedLightIconButton, LightIconButton } from 'twenty-ui/input';
 import { AnimatedExpandableContainer } from 'twenty-ui/layout';
 import { MenuItem } from 'twenty-ui/navigation';
 import { themeCssVariables } from 'twenty-ui/theme-constants';
@@ -43,13 +43,18 @@ const StyledSettingsContent = styled.div`
   display: flex;
   flex-direction: column;
   gap: ${themeCssVariables.spacing[2]};
-  padding: ${themeCssVariables.spacing[3]};
+  padding-bottom: ${themeCssVariables.spacing[3]};
+  padding-inline: ${themeCssVariables.spacing[3]};
+  padding-top: ${themeCssVariables.spacing[2]};
 `;
 
 const StyledSettingsHeader = styled.div<{
   showRemoveFieldButton: boolean;
+  isExpanded: boolean;
 }>`
   align-items: center;
+  border-bottom: ${({ isExpanded }) =>
+    isExpanded ? `1px solid ${themeCssVariables.border.color.medium}` : 'none'};
   cursor: pointer;
   display: grid;
   gap: ${themeCssVariables.spacing[1]};
@@ -58,7 +63,8 @@ const StyledSettingsHeader = styled.div<{
       ? `1fr ${themeCssVariables.spacing[6]} ${themeCssVariables.spacing[6]}`
       : `1fr ${themeCssVariables.spacing[6]}`};
   height: ${themeCssVariables.spacing[8]};
-  padding-inline: ${themeCssVariables.spacing[2]};
+  padding-left: ${themeCssVariables.spacing[2]};
+  padding-right: ${themeCssVariables.spacing[1]};
 `;
 
 const StyledTitleContainer = styled.div`
@@ -165,11 +171,16 @@ export const WorkflowOutputSchemaBuilder = ({
                 <StyledSettingsHeader
                   showRemoveFieldButton={showRemoveFieldButton}
                   onClick={() => toggleField(field.id)}
+                  isExpanded={isExpanded}
                 >
                   <StyledTitleContainer>
                     <span>{field.name || t`Untitled field`}</span>
                   </StyledTitleContainer>
-                  <LightIconButton Icon={IconChevronDown} size="small" />
+                  <AnimatedLightIconButton
+                    Icon={IconChevronDown}
+                    size="small"
+                    animate={{ rotate: isExpanded ? 180 : 0 }}
+                  />
                   {showRemoveFieldButton && (
                     <LightIconButton
                       testId="remove-output-field-button"
