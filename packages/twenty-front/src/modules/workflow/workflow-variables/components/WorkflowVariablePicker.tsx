@@ -24,11 +24,6 @@ const StyledSearchVariablesDropdownContainer = styled.div<{
 
   justify-content: center;
 
-  padding: ${({ multiline }) =>
-    multiline
-      ? `${themeCssVariables.spacing[0.5]} ${themeCssVariables.spacing[0]}`
-      : '0'};
-
   position: ${({ multiline }) => (multiline ? 'absolute' : 'static')};
   right: ${({ multiline }) =>
     multiline ? themeCssVariables.spacing[0] : 'auto'};
@@ -66,7 +61,6 @@ export const WorkflowVariablePicker: VariablePickerComponent = ({
         disabled={disabled}
         shouldDisplayRecordObjects={shouldDisplayRecordObjects}
         shouldDisplayRecordFields={shouldDisplayRecordFields}
-        multiline={multiline}
       />
     </StyledSearchVariablesDropdownContainer>
   );

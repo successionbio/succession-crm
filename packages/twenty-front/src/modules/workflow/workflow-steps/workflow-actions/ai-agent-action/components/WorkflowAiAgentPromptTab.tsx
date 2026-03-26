@@ -1,6 +1,6 @@
-import { createDefaultOutputSchemaField } from '@/ai/utils/createDefaultOutputSchemaField';
 import { type OutputSchemaField } from '@/ai/constants/OutputFieldTypeOptions';
 import { useAiModelOptions } from '@/ai/hooks/useAiModelOptions';
+import { createDefaultOutputSchemaField } from '@/ai/utils/createDefaultOutputSchemaField';
 import { fieldsToSchema } from '@/ai/utils/fieldsToSchema';
 import { schemaToFields } from '@/ai/utils/schemaToFields';
 import { FormTextFieldInput } from '@/object-record/record-field/ui/form-types/components/FormTextFieldInput';
