@@ -88,7 +88,17 @@ The Twenty server syncs its marketplace catalog from the npm registry **every ho
 2. For each package, it fetches the `manifest.json` from the npm CDN
 3. The app's metadata (name, description, author, logo, screenshots, category) is extracted from the manifest and displayed in the marketplace
 
-After publishing, your app can take up to one hour to appear in the marketplace.
+After publishing, your app can take up to one hour to appear in the marketplace. To trigger the sync immediately instead of waiting for the next hourly run:
+
+```bash filename="Terminal"
+yarn twenty catalog-sync
+```
+
+To target a specific remote:
+
+```bash filename="Terminal"
+yarn twenty catalog-sync -r production
+```
 
 The metadata shown in the marketplace comes from your `defineApplication()` call in your app source code — fields like `displayName`, `description`, `author`, `category`, `logoUrl`, `screenshots`, `aboutDescription`, `websiteUrl`, and `termsUrl`.
 
@@ -229,6 +239,7 @@ Start in **Development** mode while building your app. When it's ready, choose *
 | `yarn twenty build` | Compile app and generate manifest | `--tarball` — also create a `.tgz` package |
 | `yarn twenty publish` | Build and publish to npm | `--tag <tag>` — npm dist-tag (e.g., `beta`, `next`) |
 | `yarn twenty deploy` | Build and upload tarball to a server | `-r, --remote <name>` — target remote |
+| `yarn twenty catalog-sync` | Trigger marketplace catalog sync on the server | `-r, --remote <name>` — target remote |
 | `yarn twenty install` | Install a deployed app on a workspace | `-r, --remote <name>` — target remote |
 | `yarn twenty dev` | Watch and sync local changes | Uses default remote |
 | `yarn twenty remote add` | Add a server connection | `--url`, `--token`, `--as`, `--local`, `--port` |

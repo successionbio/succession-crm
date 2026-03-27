@@ -39,6 +39,7 @@ export class MarketplaceQueryService {
         await this.messageQueueService.add(
           MarketplaceCatalogSyncCronJob.name,
           {},
+          { id: 'marketplace-catalog-sync' }, // Avoids triggering multiple pending jobs
         );
       }
 
