@@ -3,6 +3,7 @@ import { Title } from '@/auth/components/Title';
 import { currentUserState } from '@/auth/states/currentUserState';
 import { OnboardingModalCircularIcon } from '@/onboarding/components/OnboardingModalCircularIcon';
 import { ModalContent } from 'twenty-ui/layout';
+import { useSnackBar } from '@/ui/feedback/snack-bar-manager/hooks/useSnackBar';
 import { useSubscriptionStatus } from '@/workspace/hooks/useSubscriptionStatus';
 import { styled } from '@linaria/react';
 import { t } from '@lingui/core/macro';
@@ -17,6 +18,10 @@ import { AnimatedEaseIn } from 'twenty-ui/utilities';
 import { useLazyQuery } from '@apollo/client/react';
 import { GetCurrentUserDocument } from '~/generated-metadata/graphql';
 import { useNavigateApp } from '~/hooks/useNavigateApp';
+import { sleep } from '~/utils/sleep';
+
+const SUBSCRIPTION_CHECK_RETRY_DELAY_MS = 2000;
+const SUBSCRIPTION_CHECK_MAX_RETRIES = 5;
 
 const StyledTitleContainer = styled.div`
   align-items: center;
@@ -33,6 +38,7 @@ export const PaymentSuccess = () => {
   });
   const setCurrentUser = useSetAtomState(currentUserState);
   const [isLoading, setIsLoading] = useState(false);
+  const { enqueueErrorSnackBar } = useSnackBar();
   const navigateWithSubscriptionCheck = async () => {
     if (isLoading) return;
 
@@ -44,23 +50,32 @@ export const PaymentSuccess = () => {
         return;
       }
 
-      const result = await getCurrentUser();
-      const currentUser = result.data?.currentUser;
-      const refreshedSubscriptionStatus =
-        currentUser?.currentWorkspace?.currentBillingSubscription?.status;
+      for (
+        let attempt = 0;
+        attempt < SUBSCRIPTION_CHECK_MAX_RETRIES;
+        attempt++
+      ) {
+        const result = await getCurrentUser();
+        const currentUser = result.data?.currentUser;
+        const refreshedSubscriptionStatus =
+          currentUser?.currentWorkspace?.currentBillingSubscription?.status;
 
-      if (isDefined(currentUser) && isDefined(refreshedSubscriptionStatus)) {
-        setCurrentUser(currentUser);
-        navigate(AppPath.CreateWorkspace);
-        return;
+        if (isDefined(currentUser) && isDefined(refreshedSubscriptionStatus)) {
+          setCurrentUser(currentUser);
+          navigate(AppPath.CreateWorkspace);
+          return;
+        }
+
+        if (attempt < SUBSCRIPTION_CHECK_MAX_RETRIES - 1) {
+          await sleep(SUBSCRIPTION_CHECK_RETRY_DELAY_MS);
+        }
       }
 
-      throw new Error(
-        t`We're waiting for a confirmation from our payment provider (Stripe).\nPlease try again in a few seconds, sorry.`,
+      enqueueErrorSnackBar(
+        t`We're waiting for a confirmation from our payment provider (Stripe). Please try again in a few seconds.`,
       );
-    } catch (error) {
+    } finally {
       setIsLoading(false);
-      throw error;
     }
   };
 
