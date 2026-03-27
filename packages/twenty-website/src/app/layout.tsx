@@ -1,4 +1,4 @@
-import Footer from '@/sections/Footer/Footer';
+import { Footer } from '@/sections/Footer/components';
 import { Menu } from '@/sections/Menu/components';
 import { theme } from '@/theme';
 import { cssVariables } from '@/theme/css-variables';
@@ -76,7 +76,13 @@ export default function RootLayout({
           <Menu.Cta />
         </Menu.Root>
         <StyledMain>{children}</StyledMain>
-        <Footer />
+        <Footer.Root>
+          <Footer.Logo />
+          <Footer.Nav />
+          <Footer.Bottom>
+            <Footer.Social />
+          </Footer.Bottom>
+        </Footer.Root>
       </body>
     </html>
   );
