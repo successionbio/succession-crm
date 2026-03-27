@@ -215,8 +215,6 @@ export const SettingsAvailableApplicationDetails = () => {
   const screenshots = app?.screenshots ?? [];
   const aboutDescription = app?.aboutDescription;
 
-  const loading = !isDefined(application);
-
   const currentVersion = application?.version;
   const latestAvailableVersion = detail?.latestAvailableVersion;
 
@@ -261,7 +259,7 @@ export const SettingsAvailableApplicationDetails = () => {
   };
 
   const getActionButton = () => {
-    if (!canInstallMarketplaceApps || loading) {
+    if (!canInstallMarketplaceApps) {
       return null;
     }
     if (!isAlreadyInstalled) {
@@ -418,16 +416,16 @@ export const SettingsAvailableApplicationDetails = () => {
 
             <StyledContentContainer>
               <StyledMainContent>
-                {aboutDescription && (
-                  <Section>
-                    {aboutDescription && (
-                      <>
-                        <StyledSectionTitle>{t`About`}</StyledSectionTitle>
-                        <LazyMarkdownRenderer text={aboutDescription} />
-                      </>
-                    )}
-                  </Section>
-                )}
+                <Section>
+                  <StyledSectionTitle>{t`About`}</StyledSectionTitle>
+                  <LazyMarkdownRenderer
+                    text={
+                      aboutDescription
+                        ? aboutDescription
+                        : t`No description available for this application`
+                    }
+                  />
+                </Section>
               </StyledMainContent>
 
               <StyledSidebar>

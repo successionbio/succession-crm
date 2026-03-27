@@ -17,11 +17,7 @@ export const SettingsApplicationDetailSettingsTab = ({
 }) => {
   const { updateOneApplicationVariable } = useUpdateOneApplicationVariable();
 
-  if (!isDefined(application)) {
-    return null;
-  }
-
-  const envVariables = [...(application.applicationVariables ?? [])].sort(
+  const envVariables = [...(application?.applicationVariables ?? [])].sort(
     (a, b) => a.key.localeCompare(b.key),
   );
 
@@ -29,11 +25,13 @@ export const SettingsApplicationDetailSettingsTab = ({
     <SettingsApplicationDetailEnvironmentVariablesTable
       envVariables={envVariables}
       onUpdate={({ key, value }) =>
-        updateOneApplicationVariable({
-          key,
-          value,
-          applicationId: application.id,
-        })
+        application?.id
+          ? updateOneApplicationVariable({
+              key,
+              value,
+              applicationId: application.id,
+            })
+          : null
       }
     />
   );
