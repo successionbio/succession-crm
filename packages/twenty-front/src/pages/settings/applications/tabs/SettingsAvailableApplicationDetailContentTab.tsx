@@ -83,8 +83,7 @@ export const SettingsAvailableApplicationDetailContentTab = ({
 
     return Array.from(groupMap.values()).map((group) => {
       const appObject = objects.find(
-        (obj) =>
-          obj.universalIdentifier === group.objectUniversalIdentifier,
+        (obj) => obj.universalIdentifier === group.objectUniversalIdentifier,
       );
 
       if (isDefined(appObject)) {

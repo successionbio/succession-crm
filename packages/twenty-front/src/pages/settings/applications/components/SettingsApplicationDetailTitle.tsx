@@ -12,10 +12,10 @@ type SettingsApplicationDetailTitleProps = {
 };
 
 const StyledTitleContainer = styled.div`
+  margin-bottom: ${themeCssVariables.spacing[4]};
   width: ${() => {
     return OBJECT_SETTINGS_WIDTH + 'px';
   }};
-  margin-bottom: ${themeCssVariables.spacing[4]};
 `;
 
 const StyledHeader = styled.div`

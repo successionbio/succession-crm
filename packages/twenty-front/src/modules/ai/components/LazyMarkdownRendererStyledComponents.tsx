@@ -5,10 +5,10 @@ export const StyledMarkdownContainer = styled.div`
   border-radius: ${themeCssVariables.border.radius.sm};
   line-height: 150%;
   margin: ${themeCssVariables.spacing['1.5']} 0;
+  overflow-x: auto;
   position: relative;
   scroll-margin-bottom: ${themeCssVariables.spacing[10]};
   scroll-margin-top: ${themeCssVariables.spacing[10]};
-  overflow-x: auto;
 
   &:empty {
     display: none;

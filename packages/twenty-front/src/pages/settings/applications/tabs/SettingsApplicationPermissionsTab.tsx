@@ -42,10 +42,10 @@ const resolvePermissionIds = (
 
   const allObjectUniversalIds = new Set<string>();
 
-  for (const permission of (defaultRole.objectPermissions ?? [])) {
+  for (const permission of defaultRole.objectPermissions ?? []) {
     allObjectUniversalIds.add(permission.objectUniversalIdentifier);
   }
-  for (const permission of (defaultRole.fieldPermissions ?? [])) {
+  for (const permission of defaultRole.fieldPermissions ?? []) {
     allObjectUniversalIds.add(permission.objectUniversalIdentifier);
   }
 
@@ -63,7 +63,7 @@ const resolvePermissionIds = (
     }
   }
 
-  for (const permission of (defaultRole.fieldPermissions ?? [])) {
+  for (const permission of defaultRole.fieldPermissions ?? []) {
     const objectName = findObjectNameByUniversalIdentifier(
       permission.objectUniversalIdentifier,
     );
@@ -114,7 +114,8 @@ const buildSyntheticRole = (
   isEditable: false,
   canReadAllObjectRecords: defaultRole.canReadAllObjectRecords ?? false,
   canUpdateAllObjectRecords: defaultRole.canUpdateAllObjectRecords ?? false,
-  canSoftDeleteAllObjectRecords: defaultRole.canSoftDeleteAllObjectRecords ?? false,
+  canSoftDeleteAllObjectRecords:
+    defaultRole.canSoftDeleteAllObjectRecords ?? false,
   canDestroyAllObjectRecords: defaultRole.canDestroyAllObjectRecords ?? false,
   canUpdateAllSettings: defaultRole.canUpdateAllSettings ?? false,
   canAccessAllTools: defaultRole.canAccessAllTools ?? false,
@@ -126,16 +127,18 @@ const buildSyntheticRole = (
   apiKeys: [],
   rowLevelPermissionPredicates: [],
   rowLevelPermissionPredicateGroups: [],
-  objectPermissions: (defaultRole.objectPermissions ?? []).map((permission) => ({
-    __typename: 'ObjectPermission' as const,
-    objectMetadataId:
-      objectUniversalIdToIdMap[permission.objectUniversalIdentifier] ??
-      permission.objectUniversalIdentifier,
-    canReadObjectRecords: permission.canReadObjectRecords,
-    canUpdateObjectRecords: permission.canUpdateObjectRecords,
-    canSoftDeleteObjectRecords: permission.canSoftDeleteObjectRecords,
-    canDestroyObjectRecords: permission.canDestroyObjectRecords,
-  })),
+  objectPermissions: (defaultRole.objectPermissions ?? []).map(
+    (permission) => ({
+      __typename: 'ObjectPermission' as const,
+      objectMetadataId:
+        objectUniversalIdToIdMap[permission.objectUniversalIdentifier] ??
+        permission.objectUniversalIdentifier,
+      canReadObjectRecords: permission.canReadObjectRecords,
+      canUpdateObjectRecords: permission.canUpdateObjectRecords,
+      canSoftDeleteObjectRecords: permission.canSoftDeleteObjectRecords,
+      canDestroyObjectRecords: permission.canDestroyObjectRecords,
+    }),
+  ),
   fieldPermissions: (defaultRole.fieldPermissions ?? []).map((permission) => ({
     __typename: 'FieldPermission' as const,
     id: uuidv4(),
@@ -192,14 +195,14 @@ const buildobjectMetadataItemsFromMarketplaceApp = (
 ): EnrichedObjectMetadataItem[] => {
   const unresolvedUniversalIds = new Set<string>();
 
-  for (const permission of (defaultRole.objectPermissions ?? [])) {
+  for (const permission of defaultRole.objectPermissions ?? []) {
     if (
       !isDefined(objectUniversalIdToIdMap[permission.objectUniversalIdentifier])
     ) {
       unresolvedUniversalIds.add(permission.objectUniversalIdentifier);
     }
   }
-  for (const permission of (defaultRole.fieldPermissions ?? [])) {
+  for (const permission of defaultRole.fieldPermissions ?? []) {
     if (
       !isDefined(objectUniversalIdToIdMap[permission.objectUniversalIdentifier])
     ) {
@@ -223,7 +226,9 @@ const buildobjectMetadataItemsFromMarketplaceApp = (
         buildFieldMetadataItemFromMarketplaceField,
       );
 
-      const objectFieldPermissions = (defaultRole.fieldPermissions ?? []).filter(
+      const objectFieldPermissions = (
+        defaultRole.fieldPermissions ?? []
+      ).filter(
         (permission) => permission.objectUniversalIdentifier === universalId,
       );
 

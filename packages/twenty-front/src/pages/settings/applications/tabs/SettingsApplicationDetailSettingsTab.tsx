@@ -1,5 +1,5 @@
 import { isDefined } from 'twenty-shared/utils';
-import { Application } from '~/generated-metadata/graphql';
+import { type Application } from '~/generated-metadata/graphql';
 import { useUpdateOneApplicationVariable } from '~/pages/settings/applications/hooks/useUpdateOneApplicationVariable';
 import { SettingsApplicationDetailEnvironmentVariablesTable } from '~/pages/settings/applications/tabs/SettingsApplicationDetailEnvironmentVariablesTable';
 import { H2Title, IconTrash } from 'twenty-ui/display';
