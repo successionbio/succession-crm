@@ -101,7 +101,7 @@ const Divider = styled(Separator)`
   width: 0px;
 `;
 
-export default function MenuDrawer() {
+export function MenuDrawer() {
   return (
     <Drawer.Portal>
       <DrawerPopup aria-label="Navigation menu">
@@ -132,31 +132,33 @@ export default function MenuDrawer() {
         </CtaContainer>
 
         <SocialContainer>
-          {SOCIAL_LINKS.filter((item) => item.showInDrawer).map((item, i) => (
-            <React.Fragment key={item.href}>
-              {i > 0 && <Divider orientation="vertical" />}
-              <SocialItem
-                href={item.href}
-                target="_blank"
-                rel="noopener noreferrer"
-                aria-label={item.ariaLabel}
-              >
-                <item.icon
-                  size={14}
-                  fillColor={theme.colors.secondary.background[100]}
-                  aria-hidden="true"
-                />
-                {item.label}
-                {item.label && (
-                  <ArrowRightUpIcon
-                    size={8}
-                    strokeColor={theme.colors.highlight[100]}
+          {SOCIAL_LINKS.filter((item) => item.showInDrawer).map(
+            (item, index) => (
+              <React.Fragment key={item.href}>
+                {index > 0 && <Divider orientation="vertical" />}
+                <SocialItem
+                  href={item.href}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  aria-label={item.ariaLabel}
+                >
+                  <item.icon
+                    size={14}
+                    fillColor={theme.colors.secondary.background[100]}
                     aria-hidden="true"
                   />
-                )}
-              </SocialItem>
-            </React.Fragment>
-          ))}
+                  {item.label}
+                  {item.label && (
+                    <ArrowRightUpIcon
+                      size={8}
+                      strokeColor={theme.colors.highlight[100]}
+                      aria-hidden="true"
+                    />
+                  )}
+                </SocialItem>
+              </React.Fragment>
+            ),
+          )}
         </SocialContainer>
       </DrawerPopup>
     </Drawer.Portal>

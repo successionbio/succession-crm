@@ -5,9 +5,10 @@ import { CloseIcon, MenuIcon } from '@/icons';
 import { theme } from '@/theme';
 import { Drawer } from '@base-ui/react/drawer';
 import { styled } from '@linaria/react';
+import type { ReactNode } from 'react';
 import { useState } from 'react';
-import { CloseDrawerWhenNavigationExpandsEffect } from './effect-components/CloseDrawerWhenNavigationExpandsEffect';
-import MenuDrawer from './MenuDrawer';
+import { CloseDrawerWhenNavigationExpandsEffect } from '../../effect-components/CloseDrawerWhenNavigationExpandsEffect';
+import { MenuDrawer } from '../Drawer/Drawer';
 
 const StyledMenuContainer = styled(Container)`
   margin-top: ${theme.spacing(4)};
@@ -42,11 +43,9 @@ const MobileRightContainer = styled.div`
   }
 `;
 
-interface MenuShellProps {
-  children: React.ReactNode;
-}
+type RootProps = { children: ReactNode };
 
-export function MenuShell({ children }: MenuShellProps) {
+export function Root({ children }: RootProps) {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
 
   return (
