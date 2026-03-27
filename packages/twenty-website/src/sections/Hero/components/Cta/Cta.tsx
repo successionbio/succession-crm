@@ -1,7 +1,6 @@
-import { LinkButton } from '@/design-system/components';
-import type { LinkButtonType } from '@/design-system/components/Button/types/LinkButtonType';
 import { theme } from '@/theme';
 import { styled } from '@linaria/react';
+import { ReactNode } from 'react';
 
 const CTAsContainer = styled.div`
   display: flex;
@@ -10,19 +9,8 @@ const CTAsContainer = styled.div`
   justify-content: center;
 `;
 
-export type HeroCTAsProps = { cta: LinkButtonType };
+export type HeroCtaProps = { children: ReactNode };
 
-export function Cta({ cta }: HeroCTAsProps) {
-  return (
-    <CTAsContainer>
-      <LinkButton
-        key={`${cta.label}`}
-        color="secondary"
-        href={cta.href}
-        label={cta.label}
-        type="anchor"
-        variant="contained"
-      />
-    </CTAsContainer>
-  );
+export function Cta({ children }: HeroCtaProps) {
+  return <CTAsContainer>{children}</CTAsContainer>;
 }

@@ -64,12 +64,12 @@ export function BaseButton({ color, label, variant }: BaseButtonProps) {
     case 'outlined.primary':
       fillColor = 'none';
       strokeColor = theme.colors.primary.background[100];
-      labelColor = 'primary';
+      labelColor = 'secondary';
       break;
     case 'outlined.secondary':
       fillColor = 'none';
       strokeColor = theme.colors.secondary.background[100];
-      labelColor = 'secondary';
+      labelColor = 'primary';
       break;
     default:
       throw new Error(`Unhandled button appearance: ${variant} ${color}`);

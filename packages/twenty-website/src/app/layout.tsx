@@ -1,3 +1,5 @@
+import Footer from '@/sections/Footer/Footer';
+import Menu from '@/sections/Menu/components/Menu';
 import { theme } from '@/theme';
 import { cssVariables } from '@/theme/css-variables';
 import { css } from '@linaria/core';
@@ -67,7 +69,9 @@ export default function RootLayout({
       <body
         className={`${cssVariables} ${hostGrotesk.variable} ${aleo.variable} ${azeretMono.variable}`}
       >
+        <Menu />
         <StyledMain>{children}</StyledMain>
+        <Footer />
       </body>
     </html>
   );
