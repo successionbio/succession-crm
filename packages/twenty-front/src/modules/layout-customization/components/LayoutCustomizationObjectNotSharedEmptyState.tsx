@@ -74,26 +74,26 @@ const StyledEmptySubTitle = styled.div`
 export const LayoutCustomizationObjectNotSharedEmptyState = () => {
   return (
     <StyledPanel>
-        <StyledEmptyContainer>
-          <StyledImageContainer>
-            <StyledBackgroundImage
-              src={NOT_SHARED_BACKGROUND_IMAGE}
-              alt={t`Background`}
-            />
-            <StyledInnerImage
-              src={NOT_SHARED_MOVING_IMAGE}
-              alt={t`Not shared illustration`}
-            />
-          </StyledImageContainer>
-          <StyledEmptyTextContainer>
-            <StyledEmptyTitle>
-              <Trans>Object not shared</Trans>
-            </StyledEmptyTitle>
-            <StyledEmptySubTitle>
-              <Trans>You do not have access to this object</Trans>
-            </StyledEmptySubTitle>
-          </StyledEmptyTextContainer>
-        </StyledEmptyContainer>
-      </StyledPanel>
+      <StyledEmptyContainer>
+        <StyledImageContainer>
+          <StyledBackgroundImage
+            src={NOT_SHARED_BACKGROUND_IMAGE}
+            alt={t`Background`}
+          />
+          <StyledInnerImage
+            src={NOT_SHARED_MOVING_IMAGE}
+            alt={t`Not shared illustration`}
+          />
+        </StyledImageContainer>
+        <StyledEmptyTextContainer>
+          <StyledEmptyTitle>
+            <Trans>Object not shared</Trans>
+          </StyledEmptyTitle>
+          <StyledEmptySubTitle>
+            <Trans>You do not have access to this object</Trans>
+          </StyledEmptySubTitle>
+        </StyledEmptyTextContainer>
+      </StyledEmptyContainer>
+    </StyledPanel>
   );
 };
