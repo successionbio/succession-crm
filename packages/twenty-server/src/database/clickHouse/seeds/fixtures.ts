@@ -177,7 +177,12 @@ const buildUsageEventFixtures = (): UsageEventFixture[] => {
 
           const eventDate = new Date(day);
 
-          eventDate.setHours(hour, minute, second, Math.floor(nextRandom() * 1000));
+          eventDate.setHours(
+            hour,
+            minute,
+            second,
+            Math.floor(nextRandom() * 1000),
+          );
 
           const jitter = 0.5 + nextRandom();
 
