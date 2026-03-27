@@ -110,9 +110,7 @@ export const RecordIndexContainerGater = () => {
                     <RecordIndexContainer />
                   </StyledIndexContainer>
                 ) : (
-                  <LayoutCustomizationObjectNotSharedEmptyState
-                    pageTitle={objectMetadataItem.labelPlural}
-                  />
+                  <LayoutCustomizationObjectNotSharedEmptyState />
                 )}
               </MainContainerLayoutWithSidePanel>
             </CommandMenuComponentInstanceContext.Provider>

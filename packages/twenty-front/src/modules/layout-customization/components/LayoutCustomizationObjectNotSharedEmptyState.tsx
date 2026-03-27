@@ -3,8 +3,6 @@ import { t } from '@lingui/core/macro';
 import { Trans } from '@lingui/react/macro';
 import { themeCssVariables } from 'twenty-ui/theme-constants';
 
-import { PageTitle } from '@/ui/utilities/page-title/components/PageTitle';
-
 const NOT_SHARED_BACKGROUND_IMAGE =
   '/images/placeholders/background/not_shared_bg.png';
 const NOT_SHARED_MOVING_IMAGE =
@@ -73,17 +71,9 @@ const StyledEmptySubTitle = styled.div`
   width: 50%;
 `;
 
-type LayoutCustomizationObjectNotSharedEmptyStateProps = {
-  pageTitle: string;
-};
-
-export const LayoutCustomizationObjectNotSharedEmptyState = ({
-  pageTitle,
-}: LayoutCustomizationObjectNotSharedEmptyStateProps) => {
+export const LayoutCustomizationObjectNotSharedEmptyState = () => {
   return (
-    <>
-      <PageTitle title={pageTitle} />
-      <StyledPanel>
+    <StyledPanel>
         <StyledEmptyContainer>
           <StyledImageContainer>
             <StyledBackgroundImage
@@ -105,6 +95,5 @@ export const LayoutCustomizationObjectNotSharedEmptyState = ({
           </StyledEmptyTextContainer>
         </StyledEmptyContainer>
       </StyledPanel>
-    </>
   );
 };
