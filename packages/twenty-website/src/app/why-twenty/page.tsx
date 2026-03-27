@@ -5,13 +5,13 @@ import { Hero } from '@/sections/Hero/components';
 import { theme } from '@/theme';
 
 export default function WhyTwentyPage() {
-  <>
+  return (
     <Hero.Root backgroundColor={theme.colors.primary.background[100]}>
       <Hero.Heading segments={HERO_DATA.heading} />
       <Hero.Body page={Pages.WhyTwenty} body={HERO_DATA.body} />
       <Hero.Visual>
-        <Image src="/images/home/hero-back.png" alt="" />
+        <Image src="/images/why-twenty/hero/background.png" alt="" />
       </Hero.Visual>
     </Hero.Root>
-  </>;
+  );
 }
