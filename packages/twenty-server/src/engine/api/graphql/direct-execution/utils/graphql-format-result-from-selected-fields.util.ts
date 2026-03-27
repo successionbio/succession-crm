@@ -227,9 +227,7 @@ const CONNECTION_METHODS = new Set<string>([
   RESOLVER_METHOD_NAMES.RESTORE_MANY,
 ]);
 
-const inferObjectTypeKind = (
-  method: string,
-): GraphQLObjectTypeKind => {
+const inferObjectTypeKind = (method: string): GraphQLObjectTypeKind => {
   if (method === RESOLVER_METHOD_NAMES.GROUP_BY) {
     return 'groupByConnection';
   }
