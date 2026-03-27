@@ -27,7 +27,6 @@ import { assertDestroyOneArgs } from 'src/engine/api/graphql/direct-execution/ut
 import { assertFindDuplicatesArgs } from 'src/engine/api/graphql/direct-execution/utils/assert-find-duplicates-args.util';
 import { assertFindManyArgs } from 'src/engine/api/graphql/direct-execution/utils/assert-find-many-args.util';
 import { assertFindOneArgs } from 'src/engine/api/graphql/direct-execution/utils/assert-find-one-args.util';
-import { assertGraphqlSelectedFields } from 'src/engine/api/graphql/direct-execution/utils/assert-graphql-selected-fields.util';
 import { assertGroupByArgs } from 'src/engine/api/graphql/direct-execution/utils/assert-group-by-args.util';
 import { assertMergeManyArgs } from 'src/engine/api/graphql/direct-execution/utils/assert-merge-many-args.util';
 import { assertRestoreManyArgs } from 'src/engine/api/graphql/direct-execution/utils/assert-restore-many-args.util';
@@ -281,14 +280,6 @@ export class DirectExecutionService {
     }
 
     assertFunction(args);
-
-    const selectedFields = graphqlFields(
-      graphqlPartialResolveInfo as GraphQLResolveInfo,
-      {},
-      { excludedFields: [] },
-    );
-
-    assertGraphqlSelectedFields({ selectedFields, method: entry.method });
 
     const resolver = factory.create(workspaceSchemaBuilderContext);
 

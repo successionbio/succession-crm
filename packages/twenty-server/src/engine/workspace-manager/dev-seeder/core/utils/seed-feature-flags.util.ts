@@ -120,11 +120,6 @@ export const seedFeatureFlags = async ({
         workspaceId: workspaceId,
         value: true,
       },
-      {
-        key: FeatureFlagKey.IS_DIRECT_GRAPHQL_EXECUTION_ENABLED,
-        workspaceId: workspaceId,
-        value: true,
-      },
     ])
     .execute();
 };

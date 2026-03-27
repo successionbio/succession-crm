@@ -54,7 +54,7 @@ export function assertGroupByArgs(
     (!Array.isArray(args.groupBy) && !isObject(args.groupBy))
   ) {
     throw new GraphqlDirectExecutionException(
-      'Missing required argument: "groupBy" must be an (array)',
+      'Missing required argument: "groupBy" must be an array.',
       GraphqlDirectExecutionExceptionCode.INVALID_QUERY_INPUT,
       { userFriendlyMessage: STANDARD_ERROR_MESSAGE },
     );

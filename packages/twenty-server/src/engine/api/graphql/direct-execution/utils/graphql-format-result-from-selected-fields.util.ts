@@ -1,6 +1,8 @@
+import { isNull, isObject } from '@sniptt/guards';
+import { RelationType } from 'twenty-shared/types';
 import { isDefined, isEmptyObject, pascalCase } from 'twenty-shared/utils';
 
-import { isNull, isObject } from '@sniptt/guards';
+import { CONNECTION_METHOD_NAMES } from 'src/engine/api/graphql/workspace-resolver-builder/constants/connection-method-names';
 import { RESOLVER_METHOD_NAMES } from 'src/engine/api/graphql/workspace-resolver-builder/constants/resolver-method-names';
 import { isCompositeFieldMetadataType } from 'src/engine/metadata-modules/field-metadata/utils/is-composite-field-metadata-type.util';
 import { type FlatEntityMaps } from 'src/engine/metadata-modules/flat-entity/types/flat-entity-maps.type';
@@ -40,7 +42,7 @@ export const graphQLFormatResultFromSelectedFields = (
 
   const objectTypeKind = inferObjectTypeKind(context.method);
 
-  return formatValue(
+  return format(
     result,
     selectedFields,
     objectNameSingular,
@@ -49,7 +51,7 @@ export const graphQLFormatResultFromSelectedFields = (
   );
 };
 
-const formatValue = (
+const format = (
   value: unknown,
   selectedFields: Record<string, object>,
   objectNameSingular: string,
@@ -62,18 +64,12 @@ const formatValue = (
 
   if (Array.isArray(value)) {
     return value.map((item) =>
-      formatValue(
-        item,
-        selectedFields,
-        objectNameSingular,
-        objectTypeKind,
-        context,
-      ),
+      format(item, selectedFields, objectNameSingular, objectTypeKind, context),
     );
   }
 
   if (isObject(value)) {
-    return formatObject(
+    return backfillNullValuesAndComputeTypeName(
       value as Record<string, unknown>,
       selectedFields,
       objectNameSingular,
@@ -85,7 +81,7 @@ const formatValue = (
   return value;
 };
 
-const formatObject = (
+const backfillNullValuesAndComputeTypeName = (
   record: Record<string, unknown>,
   selectedFields: Record<string, object>,
   objectNameSingular: string,
@@ -117,7 +113,7 @@ const formatObject = (
     const childObjectTypeKind = CONNECTION_FIELD_TO_OBJECT_TYPE_KIND[key];
 
     if (isDefined(childObjectTypeKind)) {
-      formatted[key] = formatValue(
+      formatted[key] = format(
         value,
         subFields as Record<string, object>,
         objectNameSingular,
@@ -127,22 +123,14 @@ const formatObject = (
       continue;
     }
 
-    const targetObjectName = findRelationTargetObjectName(
-      objectNameSingular,
-      key,
-      context,
-    );
+    const relationInfo = findRelationInfo(objectNameSingular, key, context);
 
-    if (isDefined(targetObjectName)) {
-      const childKind: GraphQLObjectTypeKind = Array.isArray(value)
-        ? 'connection'
-        : 'node';
-
-      formatted[key] = formatValue(
+    if (isDefined(relationInfo)) {
+      formatted[key] = format(
         value,
         subFields as Record<string, object>,
-        targetObjectName,
-        childKind,
+        relationInfo.targetObjectNameSingular,
+        relationInfo.objectTypeKind,
         context,
       );
       continue;
@@ -158,7 +146,7 @@ const formatObject = (
       isDefined(fieldMetadata) &&
       isCompositeFieldMetadataType(fieldMetadata.type)
     ) {
-      formatted[key] = formatCompositeField(
+      formatted[key] = backfillNullValuesAndComputeTypeNameForCompositeField(
         value as Record<string, unknown>,
         subFields as Record<string, object>,
         fieldMetadata.type,
@@ -166,19 +154,13 @@ const formatObject = (
       continue;
     }
 
-    formatted[key] = formatValue(
-      value,
-      subFields as Record<string, object>,
-      objectNameSingular,
-      objectTypeKind,
-      context,
-    );
+    formatted[key] = value;
   }
 
   return formatted;
 };
 
-const formatCompositeField = (
+const backfillNullValuesAndComputeTypeNameForCompositeField = (
   record: Record<string, unknown>,
   selectedFields: Record<string, object>,
   fieldMetadataType: string,
@@ -217,22 +199,12 @@ const deriveTypeName = (
   }
 };
 
-const CONNECTION_METHODS = new Set<string>([
-  RESOLVER_METHOD_NAMES.FIND_MANY,
-  RESOLVER_METHOD_NAMES.FIND_DUPLICATES,
-  RESOLVER_METHOD_NAMES.CREATE_MANY,
-  RESOLVER_METHOD_NAMES.UPDATE_MANY,
-  RESOLVER_METHOD_NAMES.DELETE_MANY,
-  RESOLVER_METHOD_NAMES.DESTROY_MANY,
-  RESOLVER_METHOD_NAMES.RESTORE_MANY,
-]);
-
 const inferObjectTypeKind = (method: string): GraphQLObjectTypeKind => {
   if (method === RESOLVER_METHOD_NAMES.GROUP_BY) {
     return 'groupByConnection';
   }
 
-  if (CONNECTION_METHODS.has(method)) {
+  if (CONNECTION_METHOD_NAMES.has(method)) {
     return 'connection';
   }
 
@@ -304,11 +276,16 @@ const findFieldMetadataByName = (
   );
 };
 
-const findRelationTargetObjectName = (
+type RelationInfo = {
+  targetObjectNameSingular: string;
+  objectTypeKind: GraphQLObjectTypeKind;
+};
+
+const findRelationInfo = (
   objectNameSingular: string,
   fieldName: string,
   context: GraphQLFormatContext,
-): string | undefined => {
+): RelationInfo | undefined => {
   const fieldMetadata = findFieldMetadataByName(
     objectNameSingular,
     fieldName,
@@ -327,5 +304,17 @@ const findRelationTargetObjectName = (
     flatEntityMaps: context.flatObjectMetadataMaps,
   });
 
-  return targetObjectMetadata?.nameSingular;
+  if (!isDefined(targetObjectMetadata)) {
+    return undefined;
+  }
+
+  const objectTypeKind: GraphQLObjectTypeKind =
+    fieldMetadata.settings.relationType === RelationType.ONE_TO_MANY
+      ? 'connection'
+      : 'node';
+
+  return {
+    targetObjectNameSingular: targetObjectMetadata.nameSingular,
+    objectTypeKind,
+  };
 };
