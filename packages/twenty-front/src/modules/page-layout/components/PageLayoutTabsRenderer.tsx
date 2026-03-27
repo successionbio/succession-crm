@@ -1,5 +1,6 @@
 import { metadataStoreState } from '@/metadata-store/states/metadataStoreState';
 import { type FlatObjectMetadataItem } from '@/metadata-store/types/FlatObjectMetadataItem';
+import { useObjectMetadataItems } from '@/object-metadata/hooks/useObjectMetadataItems';
 import { PageLayoutLeftPanel } from '@/page-layout/components/PageLayoutLeftPanel';
 import { PageLayoutTabList } from '@/page-layout/components/PageLayoutTabList';
 import { PageLayoutTabListEffect } from '@/page-layout/components/PageLayoutTabListEffect';
@@ -10,6 +11,8 @@ import { useIsPageLayoutInEditMode } from '@/page-layout/hooks/useIsPageLayoutIn
 import { useReorderRecordPageLayoutTabs } from '@/page-layout/hooks/useReorderRecordPageLayoutTabs';
 import { PageLayoutMainContent } from '@/page-layout/PageLayoutMainContent';
 import { pageLayoutTabSettingsOpenTabIdComponentState } from '@/page-layout/states/pageLayoutTabSettingsOpenTabIdComponentState';
+import { filterTabsByDeactivatedWidgetTypes } from '@/page-layout/utils/filterTabsByDeactivatedWidgetTypes';
+import { getDeactivatedActivityWidgetTypes } from '@/page-layout/utils/getDeactivatedActivityWidgetTypes';
 import { getScrollWrapperInstanceIdFromPageLayoutId } from '@/page-layout/utils/getScrollWrapperInstanceIdFromPageLayoutId';
 import { getTabListInstanceIdFromPageLayoutAndRecord } from '@/page-layout/utils/getTabListInstanceIdFromPageLayoutAndRecord';
 import { getTabsByDisplayMode } from '@/page-layout/utils/getTabsByDisplayMode';
@@ -30,7 +33,7 @@ import { SidePanelPages } from 'twenty-shared/types';
 import { isDefined } from 'twenty-shared/utils';
 import { themeCssVariables } from 'twenty-ui/theme-constants';
 import { useIsMobile } from 'twenty-ui/utilities';
-import { FeatureFlagKey } from '~/generated-metadata/graphql';
+import { FeatureFlagKey, WidgetType } from '~/generated-metadata/graphql';
 
 const StyledContainer = styled.div<{ hasPinnedTab: boolean }>`
   display: grid;
@@ -90,6 +93,8 @@ export const PageLayoutTabsRenderer = () => {
     FeatureFlagKey.IS_RECORD_PAGE_LAYOUT_GLOBAL_EDITION_ENABLED,
   );
 
+  const { objectMetadataItems } = useObjectMetadataItems();
+
   const metadataStore = useAtomFamilyStateValue(
     metadataStoreState,
     'objectMetadataItems',
@@ -131,13 +136,28 @@ export const PageLayoutTabsRenderer = () => {
     isEditMode: isPageLayoutInEditMode,
   });
 
+  const deactivatedWidgetTypes =
+    !isPageLayoutInEditMode &&
+    isDefined(targetRecordIdentifier?.targetObjectNameSingular)
+      ? getDeactivatedActivityWidgetTypes({
+          targetObjectNameSingular:
+            targetRecordIdentifier.targetObjectNameSingular,
+          objectMetadataItems,
+        })
+      : new Set<WidgetType>();
+
+  const tabsWithActiveWidgets = filterTabsByDeactivatedWidgetTypes({
+    tabs: tabsWithVisibleWidgets,
+    deactivatedWidgetTypes,
+  });
+
   const SYSTEM_OBJECT_TABS = ['Home', 'Timeline', 'Overview', 'Flow'];
 
   const tabsForCurrentObject = isSystemObject
-    ? tabsWithVisibleWidgets.filter((tab) =>
+    ? tabsWithActiveWidgets.filter((tab) =>
         SYSTEM_OBJECT_TABS.includes(tab.title),
       )
-    : tabsWithVisibleWidgets;
+    : tabsWithActiveWidgets;
 
   const { tabsToRenderInTabList, pinnedLeftTab } = getTabsByDisplayMode({
     tabs: tabsForCurrentObject,
