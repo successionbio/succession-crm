@@ -46,7 +46,9 @@ export class DomainServerConfigService {
   }
 
   getSubdomainAndDomainFromUrl = (url: string) => {
-    const { hostname: originHostname } = new URL(url);
+    const urlWithProtocol = url.includes('://') ? url : `https://${url}`;
+
+    const { hostname: originHostname } = new URL(urlWithProtocol);
 
     const frontDomain = this.getFrontUrl().hostname;
 

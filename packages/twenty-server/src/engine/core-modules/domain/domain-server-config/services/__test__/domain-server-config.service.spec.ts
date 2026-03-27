@@ -42,6 +42,74 @@ describe('SubdomainManagerService', () => {
     twentyConfigService = module.get<TwentyConfigService>(TwentyConfigService);
   });
 
+  describe('getSubdomainAndDomainFromUrl', () => {
+    it('should extract subdomain from a full URL with protocol', () => {
+      jest
+        .spyOn(twentyConfigService, 'get')
+        .mockImplementation((key: string) => {
+          const env = {
+            FRONTEND_URL: 'https://twenty.com',
+            DEFAULT_SUBDOMAIN: 'app',
+          };
+
+          // @ts-expect-error legacy noImplicitAny
+          return env[key];
+        });
+
+      const result =
+        domainServerConfigService.getSubdomainAndDomainFromUrl(
+          'https://myworkspace.twenty.com',
+        );
+
+      expect(result.subdomain).toBe('myworkspace');
+      expect(result.domain).toBeNull();
+    });
+
+    it('should handle URL without protocol scheme', () => {
+      jest
+        .spyOn(twentyConfigService, 'get')
+        .mockImplementation((key: string) => {
+          const env = {
+            FRONTEND_URL: 'https://twenty.com',
+            DEFAULT_SUBDOMAIN: 'app',
+          };
+
+          // @ts-expect-error legacy noImplicitAny
+          return env[key];
+        });
+
+      const result =
+        domainServerConfigService.getSubdomainAndDomainFromUrl(
+          'myworkspace.twenty.com',
+        );
+
+      expect(result.subdomain).toBe('myworkspace');
+      expect(result.domain).toBeNull();
+    });
+
+    it('should return custom domain for non-front domain URLs', () => {
+      jest
+        .spyOn(twentyConfigService, 'get')
+        .mockImplementation((key: string) => {
+          const env = {
+            FRONTEND_URL: 'https://twenty.com',
+            DEFAULT_SUBDOMAIN: 'app',
+          };
+
+          // @ts-expect-error legacy noImplicitAny
+          return env[key];
+        });
+
+      const result =
+        domainServerConfigService.getSubdomainAndDomainFromUrl(
+          'custom.example.com',
+        );
+
+      expect(result.subdomain).toBeUndefined();
+      expect(result.domain).toBe('custom.example.com');
+    });
+  });
+
   describe('buildBaseUrl', () => {
     it('should build the base URL from environment variables', () => {
       jest
