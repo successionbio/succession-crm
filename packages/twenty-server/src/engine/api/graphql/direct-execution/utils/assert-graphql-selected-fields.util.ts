@@ -1,4 +1,4 @@
-import { isObject } from 'class-validator';
+import { isObject } from '@sniptt/guards';
 import camelCase from 'lodash.camelcase';
 import { AggregateOperations } from 'twenty-shared/types';
 

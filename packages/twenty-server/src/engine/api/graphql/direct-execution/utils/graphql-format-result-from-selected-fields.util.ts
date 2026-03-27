@@ -1,6 +1,7 @@
 import { isDefined, isEmptyObject, pascalCase } from 'twenty-shared/utils';
 
 import { isNull, isObject } from '@sniptt/guards';
+import { RESOLVER_METHOD_NAMES } from 'src/engine/api/graphql/workspace-resolver-builder/constants/resolver-method-names';
 import { isCompositeFieldMetadataType } from 'src/engine/metadata-modules/field-metadata/utils/is-composite-field-metadata-type.util';
 import { type FlatEntityMaps } from 'src/engine/metadata-modules/flat-entity/types/flat-entity-maps.type';
 import { findFlatEntityByIdInFlatEntityMaps } from 'src/engine/metadata-modules/flat-entity/utils/find-flat-entity-by-id-in-flat-entity-maps.util';
@@ -8,11 +9,15 @@ import { type FlatFieldMetadata } from 'src/engine/metadata-modules/flat-field-m
 import { isMorphOrRelationFlatFieldMetadata } from 'src/engine/metadata-modules/flat-field-metadata/utils/is-morph-or-relation-flat-field-metadata.util';
 import { type FlatObjectMetadata } from 'src/engine/metadata-modules/flat-object-metadata/types/flat-object-metadata.type';
 
-type GraphQLFormatContext = {
+type GraphQLFormatInput = {
   flatObjectMetadataMaps: FlatEntityMaps<FlatObjectMetadata>;
   flatFieldMetadataMaps: FlatEntityMaps<FlatFieldMetadata>;
   objectIdByNameSingular: Record<string, string>;
   method: string;
+};
+
+type GraphQLFormatContext = GraphQLFormatInput & {
+  fieldMetadataByNameCache: Map<string, Map<string, FlatFieldMetadata>>;
 };
 
 type GraphQLObjectTypeKind =
@@ -26,9 +31,14 @@ export const graphQLFormatResultFromSelectedFields = (
   result: unknown,
   selectedFields: Record<string, object>,
   objectNameSingular: string,
-  context: GraphQLFormatContext,
+  input: GraphQLFormatInput,
 ): unknown => {
-  const objectTypeKind = inferObjectTypeKind(selectedFields, context.method);
+  const context: GraphQLFormatContext = {
+    ...input,
+    fieldMetadataByNameCache: new Map(),
+  };
+
+  const objectTypeKind = inferObjectTypeKind(context.method);
 
   return formatValue(
     result,
@@ -207,16 +217,25 @@ const deriveTypeName = (
   }
 };
 
+const CONNECTION_METHODS = new Set<string>([
+  RESOLVER_METHOD_NAMES.FIND_MANY,
+  RESOLVER_METHOD_NAMES.FIND_DUPLICATES,
+  RESOLVER_METHOD_NAMES.CREATE_MANY,
+  RESOLVER_METHOD_NAMES.UPDATE_MANY,
+  RESOLVER_METHOD_NAMES.DELETE_MANY,
+  RESOLVER_METHOD_NAMES.DESTROY_MANY,
+  RESOLVER_METHOD_NAMES.RESTORE_MANY,
+]);
+
 const inferObjectTypeKind = (
-  selectedFields: Record<string, object>,
   method: string,
 ): GraphQLObjectTypeKind => {
-  if ('edges' in selectedFields) {
-    return method === 'groupBy' ? 'groupByConnection' : 'connection';
+  if (method === RESOLVER_METHOD_NAMES.GROUP_BY) {
+    return 'groupByConnection';
   }
 
-  if ('node' in selectedFields) {
-    return 'edge';
+  if (CONNECTION_METHODS.has(method)) {
+    return 'connection';
   }
 
   return 'node';
@@ -231,15 +250,23 @@ const CONNECTION_FIELD_TO_OBJECT_TYPE_KIND: Record<
   pageInfo: 'pageInfo',
 };
 
-const findFieldMetadataByName = (
+const getOrBuildFieldMetadataByNameMap = (
   objectNameSingular: string,
-  fieldName: string,
   context: GraphQLFormatContext,
-): FlatFieldMetadata | undefined => {
+): Map<string, FlatFieldMetadata> => {
+  const cached = context.fieldMetadataByNameCache.get(objectNameSingular);
+
+  if (isDefined(cached)) {
+    return cached;
+  }
+
+  const map = new Map<string, FlatFieldMetadata>();
   const objectId = context.objectIdByNameSingular[objectNameSingular];
 
-  if (!objectId) {
-    return undefined;
+  if (!isDefined(objectId)) {
+    context.fieldMetadataByNameCache.set(objectNameSingular, map);
+
+    return map;
   }
 
   const flatObjectMetadata = findFlatEntityByIdInFlatEntityMaps({
@@ -247,8 +274,10 @@ const findFieldMetadataByName = (
     flatEntityMaps: context.flatObjectMetadataMaps,
   });
 
-  if (!flatObjectMetadata) {
-    return undefined;
+  if (!isDefined(flatObjectMetadata)) {
+    context.fieldMetadataByNameCache.set(objectNameSingular, map);
+
+    return map;
   }
 
   for (const fieldId of flatObjectMetadata.fieldIds) {
@@ -257,12 +286,24 @@ const findFieldMetadataByName = (
       flatEntityMaps: context.flatFieldMetadataMaps,
     });
 
-    if (fieldMetadata?.name === fieldName) {
-      return fieldMetadata;
+    if (isDefined(fieldMetadata)) {
+      map.set(fieldMetadata.name, fieldMetadata);
     }
   }
 
-  return undefined;
+  context.fieldMetadataByNameCache.set(objectNameSingular, map);
+
+  return map;
+};
+
+const findFieldMetadataByName = (
+  objectNameSingular: string,
+  fieldName: string,
+  context: GraphQLFormatContext,
+): FlatFieldMetadata | undefined => {
+  return getOrBuildFieldMetadataByNameMap(objectNameSingular, context).get(
+    fieldName,
+  );
 };
 
 const findRelationTargetObjectName = (
