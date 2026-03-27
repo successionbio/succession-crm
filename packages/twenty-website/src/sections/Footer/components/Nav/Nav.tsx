@@ -177,7 +177,7 @@ export function Nav() {
                 <LinkButton
                   color="secondary"
                   href="https://app.twenty.com/welcome"
-                  label="Get started"
+                  label="Talk to us"
                   type="anchor"
                   variant="contained"
                 />
@@ -186,7 +186,7 @@ export function Nav() {
                   href="https://app.twenty.com/welcome"
                   label="Get started"
                   type="anchor"
-                  variant="contained"
+                  variant="outlined"
                 />
               </Actions>
             )}
