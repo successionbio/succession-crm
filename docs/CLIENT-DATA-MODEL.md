@@ -827,6 +827,149 @@ Workflow definitions are stored as JSON templates in the codebase. To update a w
 
 ---
 
+## How the Existing Portal Fits In
+
+### The Portal Today
+
+The Succession Portal (`succession-bio-third-party-api`) is the internal operations backbone. It currently holds:
+
+- **42+ client records** with API keys, billing info, contract details
+- **Client profiles** with full ICP, personas, products, case studies, brand voice
+- **All lead data** across every client — the accumulated database from years of DFY campaigns
+- **Campaign records** with performance stats from Bison (email) and HeyReach (LinkedIn)
+- **Activity logs** — every email sent/opened/replied, every LinkedIn interaction, every stage change
+- **Free enrichment API** — lookup people by name + domain from the internal database (before hitting paid services)
+- **Reply templates, webhook subscriptions, team member management**
+
+Every plugin skill, every agent, every cron job talks to the portal via MCP tools (40+) or direct REST API.
+
+### The Three-Layer Model
+
+The portal doesn't get replaced. It stays as the internal layer, with a new Platform API sitting between it and client-facing tools:
+
+```
+LAYER 1: PORTAL (internal — our team only)
+──────────────────────────────────────────
+│ What it does:                           │
+│  • Manages DFY client accounts          │
+│  • Stores the master lead database      │
+│  • Campaign orchestration (Bison/HR)    │
+│  • Profile/persona management           │
+│  • Activity logging                     │
+│  • Free enrichment lookups              │
+│                                         │
+│ Who uses it:                            │
+│  • Our plugin (skills, agents, crons)   │
+│  • DFY campaign team                    │
+│  • sync-portal.js (CRM sync)           │
+│                                         │
+│ Changes needed: None for V1             │
+├─────────────────────────────────────────┤
+                    │
+                    │ Portal REST API
+                    ▼
+LAYER 2: PLATFORM API (new — the bridge)
+──────────────────────────────────────────
+│ What it does:                           │
+│  • Auth (API key → tier → permissions)  │
+│  • Database proxy (wraps portal's       │
+│    enrichment/lead API for self-serve)  │
+│  • Tier gating (free: browse only,      │
+│    paid: export + enrich)               │
+│  • Usage metering (enrichments/month)   │
+│  • AI proxy (Claude API calls with      │
+│    context injection from CRM)          │
+│                                         │
+│ Who uses it:                            │
+│  • Self-serve client MCP               │
+│  • Twenty workflows (HTTP requests)     │
+│  • Activepieces flows                   │
+│                                         │
+│ Implementation: Cloudflare Worker       │
+├─────────────────────────────────────────┤
+                    │
+                    │ REST API (authenticated, tier-gated)
+                    ▼
+LAYER 3: CRM + MCP (client-facing)
+──────────────────────────────────────────
+│ What self-serve clients see:            │
+│  • Twenty CRM (pipeline, contacts)      │
+│  • MCP plugin (AI skills in Claude)     │
+│  • Pre-loaded workflows (automation)    │
+│  • Activepieces (connect external tools)│
+│                                         │
+│ What DFY clients see:                   │
+│  • Same CRM (synced from portal)        │
+│  • Plugin access (optional)             │
+│  • Our team manages everything else     │
+└─────────────────────────────────────────┘
+```
+
+### How Each Client Type Experiences the System
+
+**DFY clients (existing business, £3,800/mo+):**
+- Our team uses the portal directly (unchanged)
+- `sync-portal.js` syncs portal data → their CRM instance
+- Client sees a CRM with their pipeline, campaigns, leads, meetings
+- Client can optionally use the MCP plugin
+- Portal remains the source of truth, CRM is the display layer
+
+**Self-serve clients (new, £500/mo):**
+- They never see or know about the portal
+- They interact with CRM + MCP only
+- When they search the database or enrich a lead, the MCP calls the Platform API, which calls the portal's enrichment endpoints
+- Their CRM data is self-contained in their workspace
+- The Company Profile / context engine lives in their CRM (not in the portal)
+
+**Free tier clients:**
+- CRM + database browse (read-only)
+- When they browse the database, Platform API calls portal's lead search but blocks export/enrichment
+- No portal interaction, no enrichment access
+
+### The Portal's Lead Database IS the Product
+
+The portal's `/leads/enrich` and `/leads/find-by-company` endpoints are the **free internal enrichment API** — the life science database we've accumulated from years of DFY campaigns. This is the proprietary data asset that self-serve clients are paying to access.
+
+When a self-serve client uses `db_search_companies` or `db_search_people` in the MCP, the call chain is:
+
+```
+Client MCP → Platform API (auth + tier check) → Portal enrichment API → response
+```
+
+The portal doesn't know or care whether the request came from our internal plugin or a self-serve client. The Platform API handles the auth/gating layer.
+
+### The Data Flywheel Connection
+
+When a self-serve client enriches a new person (via third-party APIs like LeadMagic/Apollo), the Platform API writes that data back to the portal's lead database. This means:
+
+- Every self-serve client enrichment grows the database
+- The next client who searches for that person gets a free hit (from our database, not a paid API call)
+- Our COGS decrease as the database grows
+- The portal remains the single source of truth for all lead data
+
+### What Needs to Change on the Portal
+
+**For V1: Nothing.** The portal stays exactly as-is. The Platform API wraps its existing endpoints.
+
+**Future enhancements:**
+- Expanded search/filter on the enrichment API (therapeutic area, modality, funding stage — for the database browse experience)
+- A self-serve client record type in the portal (separate from DFY clients) for billing/usage tracking
+- Webhook events when portal data changes (so self-serve CRMs can stay in sync if needed)
+
+### Portal vs CRM: Who Is the Source of Truth?
+
+| Data type | Source of truth | Why |
+|-----------|----------------|-----|
+| Lead/company master database | Portal | Centralized, shared across all clients |
+| DFY client profiles/personas | Portal | Our team manages these via the plugin |
+| Self-serve client profiles/personas | CRM | Client manages these directly in their CRM |
+| DFY campaign data | Portal (synced to CRM) | Portal gets data from Bison/HeyReach |
+| Self-serve campaign data | CRM | Client's campaigns live in their CRM |
+| Enrichment data | Portal (written back) | Flywheel — all enrichments feed the master DB |
+| Billing/subscription | Stripe (via Platform API) | Stripe is the billing source of truth |
+
+---
+
 ## Billing & Payments
 
 ### Stripe Integration
