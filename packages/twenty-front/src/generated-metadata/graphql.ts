@@ -6051,8 +6051,7 @@ export type Workspace = {
   createdAt: Scalars['DateTime'];
   currentBillingSubscription?: Maybe<BillingSubscription>;
   customDomain?: Maybe<Scalars['String']>;
-  databaseSchema: Scalars['String'];
-  databaseUrl: Scalars['String'];
+  databaseSchema?: Maybe<Scalars['String']>;
   defaultRole?: Maybe<Role>;
   deletedAt?: Maybe<Scalars['DateTime']>;
   displayName?: Maybe<Scalars['String']>;

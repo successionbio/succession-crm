@@ -44,11 +44,10 @@ export class WorkspaceSchemaFactory {
     workspace: WorkspaceEntity,
     applicationId?: string,
   ): Promise<GraphQLSchema> {
-    const isDataSourceMigrated =
-      await this.featureFlagService.isFeatureEnabled(
-        FeatureFlagKey.IS_DATASOURCE_MIGRATED,
-        workspace.id,
-      );
+    const isDataSourceMigrated = await this.featureFlagService.isFeatureEnabled(
+      FeatureFlagKey.IS_DATASOURCE_MIGRATED,
+      workspace.id,
+    );
 
     const hasSchema = isDataSourceMigrated
       ? isNonEmptyString(workspace.databaseSchema)

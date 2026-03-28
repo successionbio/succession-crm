@@ -27,11 +27,10 @@ export class WorkspaceDataSourceService {
   ) {}
 
   public async checkSchemaExists(workspaceId: string) {
-    const isDataSourceMigrated =
-      await this.featureFlagService.isFeatureEnabled(
-        FeatureFlagKey.IS_DATASOURCE_MIGRATED,
-        workspaceId,
-      );
+    const isDataSourceMigrated = await this.featureFlagService.isFeatureEnabled(
+      FeatureFlagKey.IS_DATASOURCE_MIGRATED,
+      workspaceId,
+    );
 
     if (isDataSourceMigrated) {
       const workspace = await this.workspaceRepository.findOne({

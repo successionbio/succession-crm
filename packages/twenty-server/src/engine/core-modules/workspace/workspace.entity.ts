@@ -234,7 +234,7 @@ export class WorkspaceEntity {
   @Column({ default: 1 })
   metadataVersion: number;
 
-  @Field({ nullable: true })
+  @Field(() => String, { nullable: true })
   @Column({ type: 'varchar', nullable: true, default: null })
   databaseSchema: string | null;
 

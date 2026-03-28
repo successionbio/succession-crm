@@ -114,11 +114,10 @@ export class MiddlewareService {
       throw new Error('No data sources found');
     }
 
-    const isDataSourceMigrated =
-      await this.featureFlagService.isFeatureEnabled(
-        FeatureFlagKey.IS_DATASOURCE_MIGRATED,
-        data.workspace.id,
-      );
+    const isDataSourceMigrated = await this.featureFlagService.isFeatureEnabled(
+      FeatureFlagKey.IS_DATASOURCE_MIGRATED,
+      data.workspace.id,
+    );
 
     const hasSchema = isDataSourceMigrated
       ? isNonEmptyString(data.workspace.databaseSchema)
