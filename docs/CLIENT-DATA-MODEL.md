@@ -43,13 +43,15 @@ LAYER 4: Intelligence (signals, events, meetings)
 
 ## Layer 1: Standard Objects
 
+Fields marked 🔒 are **hidden by default** — they exist for reporting, forecasting, and attribution but aren't shown in standard views. Clients can unhide any field.
+
 ### Company
 
 Represents a prospect, customer, partner, or competitor in the client's pipeline.
 
 **Standard Twenty fields:** name, domainName, address, employees, linkedinUrl, annualRecurringRevenue, idealCustomerProfile
 
-**Custom fields:**
+**Custom fields — Core (visible):**
 
 | Field | Type | Description | Options/Notes |
 |-------|------|-------------|---------------|
@@ -58,16 +60,56 @@ Represents a prospect, customer, partner, or competitor in the client's pipeline
 | `technology` | TEXT | Technology / modality | e.g., mRNA, cell therapy, CRISPR, antibodies, small molecule |
 | `fundingStage` | SELECT | Funding stage | Pre-Seed, Seed, Series A, Series B, Series C+, Public, Private (Bootstrapped) |
 | `companyType` | SELECT | Relationship type | Prospect (default), Customer, Partner, Competitor, Other |
-| `icpScore` | NUMBER | AI-generated ICP fit score | 0-100, calculated by the qualification skill |
-| `icpScoreReason` | TEXT | Why this score was given | Auto-populated by AI qualification |
-| `enrichmentStatus` | SELECT | Enrichment state | Not Enriched (default), Enriched, Failed |
-| `lastEnrichedAt` | DATE_TIME | Last enrichment timestamp | |
-| `successionDbId` | TEXT | Succession database record ID | Hidden from UI. Links to our database for sync. |
+| `companyStatus` | SELECT | Lifecycle status | New, Active, Engaged, Customer, Churned, Do Not Contact |
 | `websiteUrl` | LINK | Company website | |
 | `yearFounded` | NUMBER | Year founded | |
 | `totalFunding` | CURRENCY | Total funding raised | |
+| `lastFundingDate` | DATE | Date of most recent funding round | |
+| `headquartersCountry` | TEXT | HQ country | |
+| `headquartersCity` | TEXT | HQ city | |
+| `ownerUserId` | RELATION | Account owner (rep assigned) | Links to CRM user |
+
+**Custom fields — ICP & Scoring (visible):**
+
+| Field | Type | Description | Options/Notes |
+|-------|------|-------------|---------------|
+| `icpScore` | NUMBER | AI-generated ICP fit score | 0-100, calculated by qualification skill |
+| `icpScoreReason` | TEXT | Why this company scored this way | Auto-populated by AI |
+| `icpTier` | SELECT | ICP tier classification | Tier 1 (best fit), Tier 2 (good fit), Tier 3 (marginal), Not a fit |
+
+**Custom fields — Engagement & Signals (visible):**
+
+| Field | Type | Description | Options/Notes |
+|-------|------|-------------|---------------|
 | `recentSignal` | TEXT | Most recent trigger event | Auto-populated from Signal objects |
 | `recentSignalDate` | DATE_TIME | When the signal occurred | |
+| `totalContacts` | NUMBER | Number of People linked to this company | Auto-calculated |
+| `totalOpenDeals` | NUMBER | Number of open Opportunities | Auto-calculated |
+| `totalDealValue` | CURRENCY | Sum of open Opportunity amounts | Auto-calculated |
+
+**Custom fields — Enrichment (hidden 🔒):**
+
+| Field | Type | Description | Options/Notes |
+|-------|------|-------------|---------------|
+| `enrichmentStatus` | SELECT | Enrichment state | Not Enriched (default), Enriched, Failed |
+| `lastEnrichedAt` | DATE_TIME | Last enrichment timestamp | |
+| `enrichmentSource` | TEXT | Which provider enriched this record | |
+| `successionDbId` | TEXT | Succession database record ID | Hidden. Links to our database. |
+
+**Custom fields — Attribution & Reporting (hidden 🔒):**
+
+| Field | Type | Description | Options/Notes |
+|-------|------|-------------|---------------|
+| `firstTouchSource` | SELECT | How this company first entered the CRM | Database, Import, Inbound, Event, Referral, Signal, Manual |
+| `firstTouchDate` | DATE_TIME | When the company was first added | Auto-set on creation |
+| `firstTouchCampaign` | TEXT | Campaign that first touched this company | Auto-populated |
+| `lastActivityDate` | DATE_TIME | Most recent activity on this account | Auto-updated |
+| `lastContactedDate` | DATE_TIME | Last outreach to any contact at this company | Auto-updated |
+| `daysSinceLastActivity` | NUMBER | Days since last activity | Auto-calculated, for stale account reports |
+| `totalEmailsSent` | NUMBER | Emails sent to contacts at this company | Aggregate, for reporting |
+| `totalReplies` | NUMBER | Replies from contacts at this company | Aggregate |
+| `totalMeetings` | NUMBER | Meetings held with this company | Aggregate |
+| `conversionDate` | DATE_TIME | When company first became a Customer | Auto-set when companyType changes to Customer |
 
 ### Person
 
@@ -75,19 +117,77 @@ Represents a contact at a prospect/customer company.
 
 **Standard Twenty fields:** firstName, lastName, email, phone, jobTitle, linkedinUrl, city, avatarUrl, company (relation)
 
-**Custom fields:**
+**Custom fields — Core (visible):**
 
 | Field | Type | Description | Options/Notes |
 |-------|------|-------------|---------------|
 | `seniority` | SELECT | Seniority level | C-Suite, VP, Director, Manager, Individual Contributor |
 | `department` | SELECT | Functional department | R&D, Clinical, Commercial, Manufacturing, Regulatory, Operations, Finance, IT, Procurement, Quality |
-| `leadStage` | SELECT | Current outreach stage | Not Contacted (default), Contacted, Interested, Meeting Booked, Meeting Completed, Qualified, Not Qualified, Nurture |
-| `leadSource` | SELECT | How this person was found | Database, Enrichment, Import, Inbound, Referral, Event, Manual |
+| `leadStage` | SELECT | Current outreach stage | New (default), Contacted, Engaged, Meeting Booked, Meeting Completed, Qualified, Unqualified, Nurture, Customer, Do Not Contact |
+| `leadSource` | SELECT | How this person was found | Database, Enrichment, Import, Inbound, Referral, Event, Manual, Website |
 | `sentiment` | SELECT | Latest sentiment from outreach | Positive, Neutral, Negative |
+| `ownerUserId` | RELATION | Contact owner (rep assigned) | Links to CRM user |
+| `researchArea` | TEXT | Research focus area | For scientists and R&D contacts |
+| `personalNote` | TEXT | Rep's personal notes about this contact | |
+
+**Custom fields — Scoring (visible):**
+
+| Field | Type | Description | Options/Notes |
+|-------|------|-------------|---------------|
+| `engagementScore` | NUMBER | Score based on activity (email opens, clicks, meetings, website visits) | 0-100, auto-calculated |
+| `fitScore` | NUMBER | Score based on ICP match (title, seniority, department, company fit) | 0-100, auto-calculated |
+| `combinedScore` | NUMBER | Weighted combination of engagement + fit | 0-100, auto-calculated |
+| `scoreLastUpdated` | DATE_TIME | When scores were last recalculated | |
+| `personaMatch` | TEXT | Which persona this person best matches | Auto-populated by AI |
+| `buyingRole` | SELECT | Role in purchasing decisions | Champion, Decision Maker, Influencer, End User, Gatekeeper, Unknown |
+
+**Custom fields — Communication & Engagement (hidden 🔒):**
+
+| Field | Type | Description | Options/Notes |
+|-------|------|-------------|---------------|
+| `emailStatus` | SELECT | Email deliverability status | Valid, Invalid, Catch-All, Unknown, Bounced |
+| `emailVerifiedAt` | DATE_TIME | When email was last verified | |
+| `totalEmailsSent` | NUMBER | Emails sent to this person | Auto-counted |
+| `totalEmailsOpened` | NUMBER | Emails opened by this person | Auto-counted |
+| `totalEmailsClicked` | NUMBER | Email links clicked | Auto-counted |
+| `totalEmailsReplied` | NUMBER | Email replies received | Auto-counted |
+| `lastEmailSentDate` | DATE_TIME | Most recent email sent | |
+| `lastEmailOpenedDate` | DATE_TIME | Most recent email opened | |
+| `lastReplyDate` | DATE_TIME | Most recent reply received | |
+| `linkedinConnected` | BOOLEAN | Connected on LinkedIn? | |
+| `linkedinMessagesSent` | NUMBER | LinkedIn messages sent | Auto-counted |
+| `linkedinMessagesReplied` | NUMBER | LinkedIn message replies | Auto-counted |
+| `totalMeetings` | NUMBER | Meetings held with this person | Auto-counted |
+| `lastMeetingDate` | DATE_TIME | Most recent meeting | |
+| `websiteVisits` | NUMBER | Website visits tracked (marketing add-on) | Auto-counted, Phase 3+ |
+| `lastWebsiteVisit` | DATE_TIME | Most recent website visit | Phase 3+ |
+
+**Custom fields — Attribution (hidden 🔒):**
+
+| Field | Type | Description | Options/Notes |
+|-------|------|-------------|---------------|
+| `firstTouchSource` | SELECT | Original source | Database, Import, Inbound, Event, Referral, Website, Manual |
+| `firstTouchCampaign` | TEXT | First campaign that touched this person | Auto-populated |
+| `firstTouchDate` | DATE_TIME | When person first entered CRM | Auto-set on creation |
+| `convertingCampaign` | TEXT | Campaign that converted them (led to meeting/qualified) | Auto-set on stage change |
+| `convertingDate` | DATE_TIME | When they converted | |
+| `lastTouchCampaign` | TEXT | Most recent campaign | Auto-updated |
+| `lastTouchDate` | DATE_TIME | Most recent campaign touchpoint | |
+| `totalCampaignsTouched` | NUMBER | Number of campaigns this person has been in | Auto-counted |
+| `daysSinceFirstTouch` | NUMBER | Days since first entered CRM | Auto-calculated |
+| `daysSinceLastTouch` | NUMBER | Days since last activity | Auto-calculated |
+
+**Custom fields — Enrichment (hidden 🔒):**
+
+| Field | Type | Description | Options/Notes |
+|-------|------|-------------|---------------|
 | `enrichmentStatus` | SELECT | Enrichment state | Not Enriched (default), Enriched, Failed |
 | `lastEnrichedAt` | DATE_TIME | Last enrichment timestamp | |
-| `successionDbId` | TEXT | Succession database record ID | Hidden from UI |
-| `researchArea` | TEXT | Research focus area | For scientists and R&D contacts |
+| `enrichmentSource` | TEXT | Which provider enriched this record | |
+| `successionDbId` | TEXT | Succession database record ID | Hidden. Links to our database. |
+| `secondaryEmail` | TEXT | Alternative email address | From enrichment |
+| `mobilePhone` | TEXT | Mobile phone number | From enrichment |
+| `linkedinHeadline` | TEXT | LinkedIn headline | From enrichment |
 
 ### Opportunity
 
@@ -97,13 +197,55 @@ Represents a deal in the sales pipeline.
 
 **Custom pipeline stages:** Lead → Discovery → Proposal → Negotiation → Closed Won / Closed Lost
 
-**Custom fields:**
+**Custom fields — Core (visible):**
 
 | Field | Type | Description | Options/Notes |
 |-------|------|-------------|---------------|
-| `lostReason` | TEXT | Why the deal was lost | |
+| `dealType` | SELECT | Type of deal | New Business, Expansion, Renewal, Other |
 | `monthlyValue` | CURRENCY | Monthly recurring value | For subscription/retainer deals |
-| `sourceChannel` | SELECT | Originating channel | Email Campaign, LinkedIn Campaign, Inbound, Referral, Event, Other |
+| `annualValue` | CURRENCY | Annual contract value | Auto-calculated from amount or monthlyValue × 12 |
+| `probability` | NUMBER | Win probability % | Auto-suggested by stage, manually adjustable |
+| `weightedValue` | CURRENCY | Amount × probability | Auto-calculated, for forecasting |
+| `nextStep` | TEXT | What needs to happen next | Rep fills in after each interaction |
+| `competitorInDeal` | TEXT | Competing vendor(s) if known | |
+| `championName` | TEXT | Internal champion at the prospect | |
+| `decisionMaker` | TEXT | Who makes the final call | |
+| `ownerUserId` | RELATION | Deal owner (rep assigned) | Links to CRM user |
+
+**Custom fields — Forecasting (visible):**
+
+| Field | Type | Description | Options/Notes |
+|-------|------|-------------|---------------|
+| `forecastCategory` | SELECT | Forecast classification | Pipeline, Best Case, Commit, Closed Won, Closed Lost, Omitted |
+| `forecastLastUpdated` | DATE_TIME | When forecast was last reviewed | |
+| `originalCloseDate` | DATE | First close date set | Auto-set, never changes — for slippage tracking |
+| `closeDatePushCount` | NUMBER | How many times close date was pushed | Auto-incremented, for reporting |
+
+**Custom fields — Attribution (hidden 🔒):**
+
+| Field | Type | Description | Options/Notes |
+|-------|------|-------------|---------------|
+| `sourceChannel` | SELECT | Originating channel | Email Campaign, LinkedIn Campaign, Inbound, Referral, Event, Signal, Other |
+| `sourceCampaign` | TEXT | Campaign that generated this deal | Auto-populated |
+| `sourceSignal` | TEXT | Signal that triggered the deal | If originated from a signal |
+| `createdDate` | DATE_TIME | When deal was created | Auto-set |
+| `stageEnteredDate` | DATE_TIME | When deal entered current stage | Auto-updated on stage change |
+| `daysInCurrentStage` | NUMBER | Days in current stage | Auto-calculated |
+| `totalDaysOpen` | NUMBER | Total days deal has been open | Auto-calculated |
+| `averageStageDuration` | TEXT | JSON: days spent in each stage | Auto-tracked: `{"Lead": 3, "Discovery": 7, ...}` |
+
+**Custom fields — Close Analysis (hidden 🔒):**
+
+| Field | Type | Description | Options/Notes |
+|-------|------|-------------|---------------|
+| `lostReason` | SELECT | Why the deal was lost | No Budget, No Need, Competitor Won, Timing, No Response, Other |
+| `lostReasonDetail` | TEXT | Free-text detail on lost reason | |
+| `lostToCompetitor` | TEXT | Which competitor won | |
+| `wonDate` | DATE_TIME | Date deal closed won | Auto-set |
+| `lostDate` | DATE_TIME | Date deal closed lost | Auto-set |
+| `salesCycleDays` | NUMBER | Days from creation to close | Auto-calculated on close |
+| `totalMeetingsInDeal` | NUMBER | Meetings held during this deal | Auto-counted |
+| `totalEmailsInDeal` | NUMBER | Emails exchanged during this deal | Auto-counted |
 
 ---
 
@@ -202,38 +344,99 @@ Success stories that can be referenced in outreach messaging.
 
 An outreach campaign — email or LinkedIn sequence sent to a target list.
 
+**Core fields (visible):**
+
 | Field | Type | Description |
 |-------|------|-------------|
 | `name` | TEXT | Campaign name (Twenty standard) |
 | `channel` | SELECT | Email, LinkedIn, Multi-Channel |
-| `campaignStatus` | SELECT | Draft (default), Active, Paused, Completed |
+| `campaignStatus` | SELECT | Draft (default), Scheduled, Active, Paused, Completed |
+| `campaignType` | SELECT | Cold Outbound, Nurture, Event Follow-Up, Re-Engagement, ABM, Signal-Triggered |
 | `theme` | TEXT | Campaign angle or topic |
+| `targetAudience` | TEXT | Description of who this campaign targets |
+| `launchedAt` | DATE_TIME | When campaign went live |
+| `completedAt` | DATE_TIME | When campaign finished |
+| `scheduledAt` | DATE_TIME | When campaign is scheduled to launch |
+| `ownerUserId` | RELATION | Campaign owner (rep or manager) |
+
+**Performance stats (visible):**
+
+| Field | Type | Description |
+|-------|------|-------------|
 | `totalLeads` | NUMBER | Total leads in campaign |
 | `totalSent` | NUMBER | Messages sent |
 | `totalDelivered` | NUMBER | Messages delivered |
 | `totalOpened` | NUMBER | Messages opened |
+| `totalClicked` | NUMBER | Links clicked |
 | `totalReplied` | NUMBER | Replies received |
 | `totalPositive` | NUMBER | Positive replies |
+| `totalNegative` | NUMBER | Negative replies (opt-outs, not interested) |
 | `totalBounced` | NUMBER | Bounced messages |
-| `openRate` | NUMBER | Open rate % |
-| `replyRate` | NUMBER | Reply rate % |
 | `meetingsBooked` | NUMBER | Meetings booked from campaign |
-| `launchedAt` | DATE_TIME | When campaign went live |
-| `completedAt` | DATE_TIME | When campaign finished |
+| `dealsCreated` | NUMBER | Opportunities created from campaign |
+| `revenueGenerated` | CURRENCY | Total deal value attributed to campaign |
 
-**Relations:**
-- → Persona (many-to-one) — which persona this campaign targets
-
-### Campaign Membership
-
-Junction table linking People to Campaigns. Tracks per-lead stage within a campaign.
+**Rates (auto-calculated, visible):**
 
 | Field | Type | Description |
 |-------|------|-------------|
-| `leadStage` | SELECT | Not Contacted (default), Contacted, Interested, Meeting Booked, Meeting Completed, Qualified, Not Qualified, Nurture |
+| `deliveryRate` | NUMBER | % delivered / sent |
+| `openRate` | NUMBER | % opened / delivered |
+| `clickRate` | NUMBER | % clicked / delivered |
+| `replyRate` | NUMBER | % replied / delivered |
+| `positiveReplyRate` | NUMBER | % positive / replied |
+| `bounceRate` | NUMBER | % bounced / sent |
+| `meetingRate` | NUMBER | % meetings / total leads |
+| `costPerMeeting` | CURRENCY | If budget is set: budget / meetings booked |
+
+**Attribution & reporting (hidden 🔒):**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `budget` | CURRENCY | Campaign budget (optional) |
+| `costPerLead` | CURRENCY | Budget / total leads |
+| `roi` | NUMBER | % return: (revenue - budget) / budget |
+| `averageResponseTime` | NUMBER | Average hours between send and first reply |
+| `stepsCompleted` | NUMBER | How many sequence steps have fully executed |
+| `totalSteps` | NUMBER | Total steps in the sequence |
+| `lastStatsSync` | DATE_TIME | When stats were last refreshed |
+
+**Relations:**
+- → Persona (many-to-one) — which persona this campaign targets
+- → Sequence (many-to-one) — messaging used
+- → Event Bookmark (many-to-one, optional) — if event-related campaign
+
+### Campaign Membership
+
+Junction table linking People to Campaigns. Tracks per-lead stage and engagement within a campaign.
+
+**Core fields (visible):**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `leadStage` | SELECT | Not Contacted (default), Contacted, Engaged, Meeting Booked, Meeting Completed, Qualified, Unqualified, Nurture, Opted Out |
 | `sentiment` | SELECT | Positive, Neutral, Negative |
 | `channel` | SELECT | Email, LinkedIn |
 | `addedAt` | DATE_TIME | When lead was added to campaign |
+| `currentStep` | NUMBER | Which sequence step the lead is on |
+
+**Engagement tracking (hidden 🔒):**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `emailsSent` | NUMBER | Emails sent to this lead in this campaign |
+| `emailsOpened` | NUMBER | Emails opened |
+| `emailsClicked` | NUMBER | Links clicked |
+| `emailsReplied` | NUMBER | Replies |
+| `lastSentDate` | DATE_TIME | Last email/message sent |
+| `lastOpenedDate` | DATE_TIME | Last email opened |
+| `lastRepliedDate` | DATE_TIME | Last reply received |
+| `stageChangedDate` | DATE_TIME | When stage last changed |
+| `linkedinSent` | NUMBER | LinkedIn messages sent |
+| `linkedinReplied` | NUMBER | LinkedIn replies |
+| `meetingBookedDate` | DATE_TIME | When meeting was booked (if applicable) |
+| `optedOutDate` | DATE_TIME | When lead opted out (if applicable) |
+| `optedOutReason` | TEXT | Reason for opt-out |
 
 **Relations:**
 - → Campaign (many-to-one)
@@ -285,6 +488,8 @@ Multi-step outreach messaging template. Stores actual email/LinkedIn copy that i
 
 Trigger events detected for prospect companies. Auto-populated from the Succession signals pipeline and surfaced on Company timelines.
 
+**Core fields (visible):**
+
 | Field | Type | Description |
 |-------|------|-------------|
 | `signalType` | SELECT | Funding, New Hire, Product Launch, Publication, Regulatory, Partnership, Acquisition, Clinical Trial, Leadership Change |
@@ -292,10 +497,15 @@ Trigger events detected for prospect companies. Auto-populated from the Successi
 | `details` | TEXT | Full context |
 | `sourceUrl` | TEXT | Where the signal was found |
 | `detectedAt` | DATE_TIME | When the signal was detected |
+| `relevanceScore` | NUMBER | AI-scored relevance to client's ICP (0-100) |
+| `suggestedAction` | TEXT | AI-suggested next step (e.g., "Reach out — they just raised Series B") |
 | `isActioned` | BOOLEAN | Has someone acted on this signal? |
+| `actionedDate` | DATE_TIME | When someone acted on it |
+| `actionTaken` | TEXT | What was done (e.g., "Added to Q2 outbound campaign") |
 
 **Relations:**
 - → Company (many-to-one)
+- → Person (many-to-one, optional) — if the signal relates to a specific person (e.g., new hire)
 
 ### Event Bookmark
 
@@ -317,23 +527,43 @@ Life science events the client is tracking. Sourced from the Succession events d
 
 ### Meeting
 
-Meetings with prospects and customers. Linked to Cal.com calendar events.
+Meetings with prospects and customers. Linked to Cal.com calendar events and Recall.ai recordings.
+
+**Core fields (visible):**
 
 | Field | Type | Description |
 |-------|------|-------------|
 | `meetingDate` | DATE_TIME | When the meeting occurred |
 | `duration` | NUMBER | Duration in minutes |
-| `meetingType` | SELECT | Discovery, Demo, Proposal Review, Follow-Up, Onboarding, QBR, Other |
-| `summary` | TEXT | Meeting summary/notes |
-| `actionItems` | TEXT | Action items from the meeting |
-| `outcome` | SELECT | Positive, Neutral, Negative |
-| `recordingUrl` | TEXT | Recording link |
+| `meetingType` | SELECT | Discovery, Demo, Proposal Review, Follow-Up, Negotiation, Onboarding, QBR, Internal, Other |
+| `summary` | TEXT | AI-generated meeting summary (context-aware) |
+| `actionItems` | TEXT | AI-extracted action items |
+| `outcome` | SELECT | Positive, Neutral, Negative, No Show |
+| `nextSteps` | TEXT | Agreed next steps |
+| `competitorsMentioned` | TEXT | Competitors discussed in the meeting |
+| `buyingSignals` | TEXT | Buying signals detected (e.g., "asked about pricing", "mentioned budget timeline") |
+| `recordingUrl` | TEXT | Recording link (Recall.ai or external) |
+| `transcriptUrl` | TEXT | Full transcript link |
+
+**Tracking fields (hidden 🔒):**
+
+| Field | Type | Description |
+|-------|------|-------------|
 | `calendarEventId` | TEXT | Cal.com event ID |
+| `recallBotId` | TEXT | Recall.ai bot instance ID |
+| `isRecorded` | BOOLEAN | Was this meeting recorded? |
+| `isTranscribed` | BOOLEAN | Has the transcript been processed? |
+| `aiProcessedAt` | DATE_TIME | When AI analysis was completed |
+| `preCallBriefGenerated` | BOOLEAN | Was a pre-call brief generated? |
+| `attendeeEmails` | TEXT | Comma-separated attendee emails (for matching) |
+| `meetingSource` | SELECT | Cal.com, Google Calendar, Outlook, Manual |
+| `noShowFollowUpSent` | BOOLEAN | Was a no-show follow-up triggered? |
 
 **Relations:**
 - → Person (many-to-one) — primary contact in the meeting
 - → Company (many-to-one)
 - → Opportunity (many-to-one) — deal this meeting relates to
+- → Campaign (many-to-one, optional) — if meeting was booked from a campaign
 
 ---
 
@@ -436,7 +666,7 @@ CRM Droplet (existing, 4-8GB)
 
 Services Droplet (8-16GB)
 ├── Cal.com ................ cal.succession.bio (scheduling)
-├── Mautic ................. marketing.succession.bio (marketing automation)
+├── Marketing engine ....... TBD (Dittofeed preferred, Mautic fallback — see Marketing section)
 ├── Activepieces ........... connect.succession.bio (external tool connections)
 ├── Papermark .............. docs.succession.bio (document tracking)
 ├── Caddy .................. reverse proxy + SSL
@@ -471,26 +701,30 @@ These ship with every instance and are configured during provisioning:
 **Tech:** Cal.com webhooks → Twenty workflow (webhook trigger) → record creation. Pre-wired, no Activepieces needed.
 **License:** AGPLv3 (all features available self-hosted, including round-robin and Teams features)
 
-#### Mautic → CRM (Marketing Automation) — Marketing Add-On
+#### Marketing Engine → CRM — Marketing Add-On (Phase 3+)
 
-| Trigger | Action | CRM Object |
-|---------|--------|------------|
-| Contact created in Mautic | Create/update Person in CRM | Person |
-| Email opened/clicked | Activity on Person timeline | Person timeline |
-| Form submitted | Create Person + Note with form data | Person, Note |
-| Lead score updated | Update Person record | Person (custom field) |
-| Contact added to segment | Tag Person in CRM | Person |
-| Campaign email bounced | Update Person email status | Person |
+**Status: Open decision.** The marketing add-on is a Phase 3+ feature. Two candidates are under evaluation:
 
-**Bidirectional sync:**
-| CRM Trigger | Mautic Action |
-|-------------|---------------|
-| Person created in CRM | Create contact in Mautic |
-| Person stage changed to "Nurture" | Add to nurture segment |
-| Deal closed won | Add to customer segment |
+| | Dittofeed (preferred) | Mautic (fallback) |
+|---|---|---|
+| **License** | MIT | GPL-3.0 |
+| **Stack** | TypeScript/React/PostgreSQL | PHP/Symfony/MySQL |
+| **Multi-tenant** | Yes (native) | No (one instance per client) |
+| **Embeddable** | Yes (React components + headless API) | No (separate app) |
+| **Features** | Core campaigns, journeys, segmentation | Full-featured (landing pages, forms, scoring, A/B) |
+| **Maturity** | 2.7k stars, YC-backed, active | 9.4k stars, 10+ years, very mature |
+| **Risk** | Smaller community, fewer features | Separate UI, no multi-tenancy, PHP stack |
 
-**Tech:** Mautic webhooks + REST API ↔ Activepieces ↔ Twenty REST API
-**License:** GPLv3 (fully self-hostable, no feature gates)
+**Decision deferred until Phase 3.** By then, Dittofeed may have matured further, or Twenty's workflow engine may prove sufficient for basic marketing automation (nurture drips, segment-based sends). The core platform launches as a sales tool first.
+
+**What the marketing add-on will provide (regardless of engine):**
+- Email nurture campaigns (drip sequences for non-responders)
+- Marketing segmentation (dynamic segments based on engagement + demographics)
+- Web visitor tracking (know when prospects visit the client's website)
+- Lead scoring (engagement + fit scoring, synced to CRM)
+- Landing pages and forms (for events, webinars, content offers)
+- Marketing email sends (separate from outbound campaign sending)
+- Bidirectional sync with CRM (marketing activity on Person timeline, CRM data informs segments) (fully self-hostable, no feature gates)
 
 #### Papermark → CRM (Document Tracking) — Marketing Add-On
 
@@ -647,7 +881,7 @@ Clients can connect these via Activepieces (OAuth or API key, managed in the pla
 | Pipedrive | Contacts, organizations, deals → Full CRM import |
 | Salesforce | Contacts, accounts, opportunities → Full CRM import |
 
-**Marketing (if not using Mautic):**
+**Marketing (if not using our marketing add-on):**
 | Tool | What syncs |
 |------|-----------|
 | Mailchimp | Email campaign stats, subscriber activity → Person timeline |
@@ -733,9 +967,9 @@ To add a new integration:
 - Slack integration
 
 **Phase 4 — Marketing add-on integrations**
-- Mautic ↔ CRM bidirectional sync
+- Marketing engine ↔ CRM bidirectional sync (Dittofeed or Mautic — decision pending)
 - Papermark → CRM document tracking
-- Mailchimp / ActiveCampaign connectors (for clients not using Mautic)
+- Mailchimp / ActiveCampaign connectors (for clients not using our marketing add-on)
 
 ---
 
@@ -987,7 +1221,7 @@ All platform services authenticate through one identity:
 | Twenty CRM | Native Twenty auth (email/password or SSO) |
 | Activepieces | OAuth via CRM identity (Twenty as the identity provider) |
 | Cal.com | OAuth via CRM identity |
-| Mautic | OAuth via CRM identity (marketing add-on only) |
+| Marketing engine | OAuth via CRM identity (marketing add-on only, Phase 3+) |
 | MCP Plugin | API key (tied to CRM identity) |
 
 **Implementation:** Twenty acts as the OAuth provider. All other services use "Login with Succession CRM." One login, everything connected.
@@ -1092,7 +1326,7 @@ When a client upgrades to paid:
 | Tier | Daily limit per mailbox | Mailboxes included |
 |------|------------------------|--------------------|
 | Paid (£500/mo) | 50 emails/day | 3 mailboxes |
-| Marketing add-on | 5,000 marketing emails/mo (Mautic) | Separate from outbound |
+| Marketing add-on | 5,000 marketing emails/mo | Separate from outbound (Phase 3+) |
 | DFY | Managed by our team | As needed |
 
 ---
@@ -1235,7 +1469,7 @@ Issues that must be actively managed as the platform is built and launched.
 
 ### Execution Complexity
 
-**Risk:** We're building 12+ systems (CRM, Cal.com, Mautic, Activepieces, Recall.ai, MCP, database API, auth, billing, migration tooling, enrichment proxy, marketing site). A small team cannot ship and maintain all of this simultaneously.
+**Risk:** We're building many systems (CRM, Cal.com, Activepieces, Recall.ai, MCP, database API, auth, billing, migration tooling, enrichment proxy, marketing site, and eventually a marketing engine). A small team cannot ship and maintain all of this simultaneously.
 
 **Mitigation:** Ruthless phasing. Phase 1 = CRM + database browse + MCP + auth/billing. Nothing else. Each subsequent phase adds ONE system, fully stabilized before the next. Dogfooding internally catches issues before client exposure.
 
@@ -1289,11 +1523,74 @@ Issues that must be actively managed as the platform is built and launched.
 
 ---
 
+## Dashboard Builder Skill (MCP)
+
+A key adoption driver: clients can describe what they want to see, and the AI builds the dashboard for them.
+
+**How it works:**
+- Client says: "Build me a dashboard showing pipeline by stage, reply rates by campaign this quarter, and meetings booked per week"
+- MCP skill reads their data model (available objects, fields, current data)
+- Generates a Twenty dashboard definition via the API
+- Dashboard appears in their CRM immediately
+
+**Why this matters:**
+- Dashboard building is a common gap in CRM adoption — reps don't know how to set up reports
+- An AI skill that builds dashboards from natural language removes that friction entirely
+- Also useful for our team: "Build a dashboard showing all stale deals over 14 days with last activity date"
+
+**Pre-built dashboard templates + custom builds:**
+- System dashboards ship with every instance (pipeline, campaigns, enrichment, meetings)
+- The skill lets clients build additional dashboards on demand
+- "Show me which campaigns drove the most meetings last month" → dashboard
+- "I want a forecast view with weighted pipeline by close date" → dashboard
+
+**Implementation:** MCP tool that calls Twenty's dashboard API. Reads the data model, generates chart/table/KPI configs, creates the dashboard.
+
+---
+
+## Marketing Add-On: Composable Architecture (Phase 3+)
+
+Rather than adopting one monolithic marketing platform, the marketing add-on will be built from **best-of-breed OSS tools** integrated natively into the CRM's marketing tab.
+
+### Composable Approach
+
+Each marketing function uses the best available OSS tool, with all UI surfaced through Twenty custom apps:
+
+| Function | OSS Tool (candidate) | Integration method |
+|----------|---------------------|-------------------|
+| **Campaign engine** (drip sequences, journey builder) | Dittofeed (MIT, embeddable React components, multi-tenant) | Embedded React components in Twenty |
+| **Email rendering** (drag-and-drop builder) | MJML + GrapesJS or React Email (MIT) | Custom Twenty app component |
+| **Landing pages** | Build natively in Twenty or use a headless page builder | Twenty custom app |
+| **Forms** | Build natively in Twenty (form builder component) | Twenty custom app |
+| **Lead scoring** | Native — Twenty workflow calculates scores from engagement + fit data | Twenty workflows + custom fields |
+| **Web tracking** | Lightweight JS snippet → Platform API → CRM | Custom build (small) |
+| **Email sending** | Existing campaign infrastructure (Bison) or client's own SMTP | Already built |
+| **Segmentation** | Twenty's native filtering + saved views | Already exists |
+
+### Why Composable Beats Monolithic
+
+- **No multi-tenancy problem** — each tool either supports it (Dittofeed) or runs inside Twenty (which does)
+- **One UI** — everything surfaces through Twenty custom apps. Client sees "Marketing" tab, not 5 separate tools.
+- **Mix and match** — if a better OSS email builder emerges, swap it in without replacing the whole marketing stack
+- **Incremental build** — ship one function at a time (scoring first → drips → landing pages → forms → web tracking)
+- **Same tech stack** — all TypeScript/React, all inside Twenty's app framework
+
+### Marketing Feature Rollout
+
+| Phase | Feature | How |
+|-------|---------|-----|
+| 3a | Lead scoring | Twenty workflows calculate `engagementScore` + `fitScore` + `combinedScore` fields. Threshold triggers stage changes. |
+| 3b | Nurture sequences | Dittofeed embedded journey builder OR extend Twenty workflow UI for marketing-style drip campaigns |
+| 3c | Web tracking | Lightweight JS snippet on client's site → events → Platform API → Person record updates |
+| 3d | Email builder | React Email or GrapesJS component in Twenty for designing marketing emails |
+| 3e | Landing pages + forms | Custom Twenty app for building pages/forms, hosted at client subdomain |
+
+---
+
 ## Future Considerations
 
 - **Sequence Editor UI** — Replace `stepsJson` TEXT field with a visual step editor component in the CRM
 - **Event ↔ Campaign linking** — When events become a first-class campaign type, add a relation from Campaign → Event Bookmark
-- **Marketing objects (Mautic sync)** — When marketing add-on launches, add: Marketing Email, Landing Page, Form Submission, Web Visit objects
 - **Document tracking (Papermark sync)** — Add: Shared Document object with view analytics
 - **Database access tiers** — Free tier: browse-only (no `successionDbId` populated). Paid tier: import to CRM populates the link field
 - **Multi-workspace** — If we move to true multi-tenant with workspace isolation, the Company Profile singleton pattern needs to be enforced at the app level
@@ -1301,6 +1598,7 @@ Issues that must be actively managed as the platform is built and launched.
 - **Activepieces marketplace** — Build a library of Succession-specific flow templates that clients can one-click enable
 - **Mobile experience** — PWA or native app when Twenty's mobile support matures
 - **AI-powered pipeline forecasting** — Use meeting outcomes, signal data, and campaign engagement to predict deal close probability
+- **Dashboard marketplace** — Library of pre-built dashboard templates users can one-click install
 
 ---
 
@@ -1309,5 +1607,8 @@ Issues that must be actively managed as the platform is built and launched.
 | Date | Change | Reason |
 |------|--------|--------|
 | 2026-03-28 | Initial data model — 4 layers, 13 objects | Platform launch planning |
-| 2026-03-28 | Added Integrations Architecture | Cal.com, Mautic, Papermark, Recall.ai, Activepieces, BYOT support |
+| 2026-03-28 | Added Integrations Architecture | Cal.com, Papermark, Recall.ai, Activepieces, BYOT support |
 | 2026-03-28 | Added Billing, Auth, Onboarding, Email, Analytics, Outstanding Questions, Risk Register | Complete platform architecture |
+| 2026-03-28 | Comprehensive field expansion | Added forecasting, attribution, scoring, engagement tracking, hidden fields for reporting |
+| 2026-03-28 | Marketing: Mautic → composable architecture | Dittofeed preferred for campaigns, best-of-breed OSS tools for each function, all embedded in Twenty |
+| 2026-03-28 | Added Dashboard Builder Skill | AI-powered dashboard creation from natural language |
