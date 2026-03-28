@@ -36,7 +36,8 @@ LAYER 3: Outreach (campaign execution)
 LAYER 4: Intelligence (signals, events, meetings)
 ├── Signal ............... Trigger events (funding, hires, publications, etc.)
 ├── Event Bookmark ....... Life science events being tracked
-└── Meeting .............. Meetings with prospects/customers
+├── Meeting .............. Meetings with prospects/customers
+└── Suggested Action ..... AI-generated action queue (the rep's "what to do next")
 ```
 
 ---
@@ -565,6 +566,51 @@ Meetings with prospects and customers. Linked to Cal.com calendar events and Rec
 - → Opportunity (many-to-one) — deal this meeting relates to
 - → Campaign (many-to-one, optional) — if meeting was booked from a campaign
 
+### Suggested Action
+
+AI-generated recommendations for the rep. The **action queue** — a proactive feed of what to do next, powered by the context engine and multiple workflows.
+
+**Core fields (visible):**
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `title` | TEXT | Short action title (e.g., "Reach out to Xenogen Labs — Series B funding") |
+| `description` | TEXT | AI-generated reasoning and context |
+| `actionType` | SELECT | Outreach, Follow-Up, Research, Add to Campaign, Schedule Meeting, Send Document, Review Deal, Other |
+| `priority` | SELECT | High, Medium, Low |
+| `status` | SELECT | New (default), Accepted, Completed, Dismissed, Snoozed |
+| `suggestedMessage` | TEXT | Draft email/LinkedIn body if applicable (subject line in first line) |
+| `snoozedUntil` | DATE_TIME | If snoozed, when to resurface as New |
+| `sourceType` | SELECT | Signal, Pipeline Coach, Campaign Alert, Meeting Follow-Up, Enrichment, ICP Match, No-Show Recovery, Lead Recycler |
+| `completedAt` | DATE_TIME | When the action was completed |
+| `completedNote` | TEXT | What was done (optional — rep can add context) |
+
+**Relations:**
+- → Person (many-to-one, optional)
+- → Company (many-to-one, optional)
+- → Opportunity (many-to-one, optional)
+- → Signal (many-to-one, optional) — if triggered by a signal
+- → Campaign (many-to-one, optional) — if triggered by campaign performance
+- → Meeting (many-to-one, optional) — if triggered by a meeting
+
+**Default view:** "Action Queue" — filtered to `status = New`, sorted by `priority` (High first), then `createdAt` (newest first). Completed, Dismissed, and Snoozed actions are hidden from the default view but available via an "All Actions" view for reporting.
+
+**Lifecycle:**
+```
+New → Accepted → Completed (hidden from default view)
+New → Dismissed (hidden)
+New → Snoozed → resurfaces as New on snoozedUntil date (via scheduled workflow)
+```
+
+**Workflows that write to Suggested Action:**
+- Signal-Triggered Outreach Suggester → `sourceType: Signal`
+- Stale Deal Nudger → `sourceType: Pipeline Coach`
+- Campaign Performance Alerter → `sourceType: Campaign Alert`
+- Meeting Follow-Up Drafter → `sourceType: Meeting Follow-Up`
+- No-Show Recovery → `sourceType: No-Show Recovery`
+- Post-Campaign Lead Recycler → `sourceType: Lead Recycler`
+- New Company ICP Qualifier (Tier 1 matches) → `sourceType: ICP Match`
+
 ---
 
 ## Relationship Map
@@ -580,11 +626,13 @@ Company Profile (singleton)
 Company (prospect)
 ├── Person
 │   ├── Campaign Membership → Campaign
-│   └── Meeting → Opportunity
+│   ├── Meeting → Opportunity
+│   └── Suggested Action
 ├── Campaign Membership
-├── Signal
-├── Meeting
-└── Opportunity
+├── Signal → Suggested Action
+├── Meeting → Suggested Action
+├── Suggested Action
+└── Opportunity → Suggested Action
 
 Event Bookmark (standalone)
 ```
@@ -988,76 +1036,218 @@ During the provisioning script (`provision-client.js`):
 
 Workflow definitions are stored as JSON templates in the codebase. To update a workflow for all future clients, update the template. Existing clients keep their version (they may have customized it).
 
-### Always-On Workflows (automated, active by default)
+### The 10 Pre-Loaded Workflows
+
+All workflows use Twenty's built-in AI Agent step for intelligence and the Suggested Action object for output. Clients can view, edit, disable, or extend any workflow in the Automations tab.
+
+**Design principles:**
+- AI-generated content is always a draft or suggestion — never sent/executed automatically
+- All workflows read the Company Profile for context (ICP, personas, products, tone)
+- All use standard schema fields only — no dependency on client-added custom fields
+- Output goes to Suggested Action (the rep's action queue) unless it's a background data update
+
+---
+
+#### Workflow 1: New Contact Auto-Enrichment
+
+**Trigger:** Person created (any source)
+**Steps:**
+1. Read Person fields (name, company, email, title)
+2. HTTP Request → Platform API enrichment endpoint
+3. Update Person: email, LinkedIn, seniority, department, `enrichmentStatus` → Enriched, `lastEnrichedAt` → now
+4. If Company has a Company Profile → AI Agent step: score `fitScore` and `personaMatch` against ICP/personas
+5. Update Person: `fitScore`, `personaMatch`
+**Output:** Updated Person record (silent — no Suggested Action unless Tier 1 ICP match)
+**Client value:** Every contact they add or import gets enriched automatically
+
+---
+
+#### Workflow 2: Meeting Follow-Up Drafter
+
+**Trigger:** Meeting created with `outcome` = Positive or Neutral
+**Steps:**
+1. Wait 2 hours (Delay step — let the rep decompress)
+2. Read Meeting: summary, actionItems, nextSteps, competitorsMentioned, buyingSignals
+3. Read linked Person, Company, Opportunity, Company Profile
+4. AI Agent step: generate follow-up email draft using meeting context + brand tone + relevant products/case studies
+5. If Gmail/Outlook connected (via Activepieces OAuth) → HTTP Request → create draft in their actual mailbox
+6. Create Suggested Action: type = Follow-Up, priority = High, `suggestedMessage` = the draft, linked to Person + Meeting
+**Output:** Draft email in their inbox + Suggested Action in the CRM
+**Client value:** Personalized follow-up waiting for them 2 hours after every productive call
+
+---
+
+#### Workflow 3: No-Show Recovery
+
+**Trigger:** Meeting created with `outcome` = No Show
+**Steps:**
+1. Read Person, Company, Company Profile
+2. AI Agent step: generate "missed you" message using brand tone (short, not pushy)
+3. Create Suggested Action: type = Follow-Up, priority = High, sourceType = No-Show Recovery, `suggestedMessage` = the draft
+4. Wait 3 days (Delay step)
+5. Check: did the Person's `leadStage` change? (If yes, someone already handled it — stop)
+6. If no change → Create Suggested Action: type = Schedule Meeting, priority = Medium, description = "Attempt reschedule with {name} — no response to no-show follow-up"
+**Output:** Two Suggested Actions — immediate follow-up + 3-day reschedule reminder
+**Client value:** No-shows don't fall through the cracks
+
+---
+
+#### Workflow 4: Deal Stage Automation
+
+**Trigger:** Opportunity `stage` field updated
+**Steps (conditional branching based on new stage):**
+
+| New Stage | Actions |
+|-----------|---------|
+| Discovery | Create Task: "Schedule discovery call with {Company}" assigned to deal owner |
+| Proposal | AI Agent step: draft proposal outline using Company Profile + Product data + Person context → Create Note on Opportunity with outline |
+| Negotiation | Create Suggested Action: type = Review Deal, description = "Deal entering negotiation — review competitor info and pricing" |
+| Closed Won | Update Company `companyType` → Customer. Update Person `leadStage` → Customer. Set Opportunity `wonDate`, calculate `salesCycleDays`. Create Suggested Action: type = Follow-Up, description = "Send onboarding welcome + schedule kickoff" |
+| Closed Lost | Prompt owner for `lostReason` (Form step). Set `lostDate`, calculate `salesCycleDays`. If `lostReason` = Competitor Won → prompt for `lostToCompetitor` |
+
+**Output:** Automated record updates + stage-appropriate Tasks/Suggestions
+**Client value:** Pipeline hygiene is automatic. Data fills itself in as deals progress.
+
+---
+
+#### Workflow 5: Signal-Triggered Outreach Suggester
+
+**Trigger:** Signal created with `relevanceScore` > 70
+**Steps:**
+1. Read Signal: type, headline, details, linked Company
+2. Read Company Profile: ICP, personas, products, case studies
+3. Search People linked to the Signal's Company
+4. AI Agent step: generate personalized outreach referencing the signal, using brand tone and matching persona context
+5. If contacts exist → Create Suggested Action: type = Outreach, priority = High, sourceType = Signal, `suggestedMessage` = draft referencing the signal, linked to top-fit Person + Company + Signal
+6. If no contacts → Create Suggested Action: type = Research, priority = Medium, description = "Signal detected at {Company} but no contacts in CRM. Find people matching {persona}."
+**Output:** Suggested Action with context-aware draft outreach
+**Client value:** Hot signals get acted on immediately with messaging that references the trigger event
+
+---
+
+#### Workflow 6: Stale Deal Nudger
+
+**Trigger:** Cron (weekly, Monday 9am)
+**Steps:**
+1. Search Opportunities where `daysInCurrentStage` > 14 AND stage NOT IN (Closed Won, Closed Lost)
+2. For each stale deal:
+   a. Read linked Person, Company, last Meeting summary, last email activity
+   b. AI Agent step: analyze deal context → generate specific recommendation
+3. Create Suggested Action per deal: type = Follow-Up, sourceType = Pipeline Coach, priority = Medium/High based on deal value, description = specific recommendation (e.g., "Re-engage Dr. Chen — she asked about integration. Send Xenogen case study.")
+**Output:** Weekly batch of Suggested Actions for stale deals
+**Client value:** Deals never go cold silently. Specific, actionable nudges every Monday.
+
+---
+
+#### Workflow 7: Pre-Call Intelligence Brief
+
+**Trigger:** Calendar event created with external participant (via Cal.com webhook or calendar sync)
+**Steps:**
+1. Match attendee email to Person record in CRM
+2. If no match → enrich via Platform API → create Person
+3. Read Person, Company, open Opportunity, previous Meetings (summaries + action items), Campaign history, Company Profile
+4. AI Agent step: assemble pre-call brief — company overview, ICP fit, last interactions, talking points, relevant products/case studies, open action items from previous meetings
+5. Create Note on Person: title = "Pre-Call Brief: {meetingTitle}", body = the brief, pinned
+**Output:** Note on the Person record with full context brief
+**Client value:** Every meeting starts prepared. Zero manual prep.
+
+---
+
+#### Workflow 8: New Company ICP Qualifier
+
+**Trigger:** Company created (any source — import, database, manual)
+**Steps:**
+1. Read Company fields (industry, size, funding, therapeutic area, technology)
+2. Read Company Profile (ICP criteria)
+3. AI Agent step: score company against ICP → determine `icpScore` (0-100), `icpScoreReason`, `icpTier`
+4. Update Company: `icpScore`, `icpScoreReason`, `icpTier`
+5. If `icpTier` = Tier 1 → Create Suggested Action: type = Outreach, sourceType = ICP Match, priority = High, description = "High-fit company added — {icpScoreReason}"
+**Output:** ICP scores on every company + Suggested Action for Tier 1 matches
+**Client value:** Every company in the CRM is auto-scored. Reps know what to prioritize.
+
+---
+
+#### Workflow 9: Campaign Performance Alerter
+
+**Trigger:** Cron (daily, 8am)
+**Steps:**
+1. Search Campaigns where `campaignStatus` = Active
+2. For each active campaign, evaluate:
+   - Reply rate > 5% → positive alert
+   - Bounce rate > 10% → warning
+   - 0 replies after 50+ sends → poor performance alert
+   - Meeting booked (new since last check) → celebration alert
+3. AI Agent step: summarize daily campaign health across all active campaigns
+4. Create Suggested Action per alert: sourceType = Campaign Alert, priority varies by alert severity
+   - High priority: high bounces, zero traction
+   - Medium: meeting booked, good performance (scale suggestion)
+**Output:** Daily batch of campaign health Suggested Actions
+**Client value:** Campaign health monitoring without checking dashboards
+
+---
+
+#### Workflow 10: Post-Campaign Lead Recycler
+
+**Trigger:** Campaign `campaignStatus` changes to Completed
+**Steps:**
+1. Search Campaign Memberships for this campaign
+2. Categorize leads:
+   - **Never engaged** (stage = Not Contacted or Contacted): update `leadStage` → Nurture
+   - **Engaged but didn't convert** (stage = Engaged or Meeting Booked): flag for follow-up
+   - **Qualified/Customer**: skip (already handled)
+   - **Opted Out**: skip
+3. For never-engaged leads: Create Suggested Action: type = Add to Campaign, sourceType = Lead Recycler, description = "{count} leads from {campaign} never engaged. Consider adding to a nurture sequence."
+4. For engaged leads: Create Suggested Action: type = Follow-Up, sourceType = Lead Recycler, priority = High, description = "Follow up with {count} engaged leads from {campaign} who didn't convert."
+**Output:** Suggested Actions for lead recycling + auto-stage updates for non-responders
+**Client value:** Campaigns don't end with dead leads. Non-responders get recycled, engaged leads get followed up.
+
+---
+
+### Supporting Background Workflows (no Suggested Action output)
+
+These run silently in the background to keep data fresh:
 
 **Signal → Company Update**
-- Trigger: Record created (Signal object)
-- Action: Update linked Company's `recentSignal` and `recentSignalDate` fields
-- Purpose: Company records always show the latest signal without manual work
+- Trigger: Signal created
+- Action: Update linked Company's `recentSignal` and `recentSignalDate`
 
-**Calendar → Meeting Prep**
-- Trigger: Record created (Calendar Event with external participant)
-- Action: HTTP request to Platform API → gather Person + Company context → create Note on the linked Person with pre-call brief
-- Purpose: Rep has context before every meeting without doing anything
-
-**Recall.ai → Meeting Intelligence**
-- Trigger: Webhook (from Recall.ai on call completion)
-- Action: HTTP request to Platform API (sends transcript + CRM context to Claude) → create Meeting record → create Tasks from action items → update Opportunity if recommended
-- Purpose: AI-powered meeting notes with full CRM context, zero manual input
-
-**Email Reply → Stage Update**
-- Trigger: Record updated (Email / Message received from external contact)
-- Action: If linked Person's `leadStage` is "Contacted," update to "Interested"
-- Purpose: Automatic pipeline progression based on engagement
+**Email Reply → Stage Progression**
+- Trigger: Email received from external contact
+- Action: If Person's `leadStage` = Contacted → update to Engaged
 
 **Campaign Stats Sync**
 - Trigger: Cron (every 6 hours)
-- Action: HTTP request to Platform API → fetch campaign stats from sending infrastructure → update Campaign records
-- Purpose: Campaign performance always up-to-date without manual refresh
+- Action: HTTP Request to Platform API → fetch latest stats → update Campaign records
 
-### Scheduled Workflows (run on a timer)
-
-**Prospector (daily)**
-- Trigger: Cron (daily at 8am client timezone)
-- Action: HTTP request to Platform API → query database for new ICP-matching companies → for each match, create Company record with `icpScore` and `icpScoreReason` → create Task for admin: "Review 5 new ICP matches"
-- Purpose: Client wakes up to fresh prospects every morning
-
-**Pipeline Coach (weekly)**
-- Trigger: Cron (weekly, Monday 9am)
-- Action: Search Opportunities where stage hasn't changed in 14+ days → HTTP request to Platform API (Claude analysis with deal context) → create Tasks with recommendations per stale deal
-- Purpose: Prevents deals from going cold
-
-**Enrichment Refresh (monthly)**
+**Enrichment Refresh**
 - Trigger: Cron (1st of month)
-- Action: Search People where `lastEnrichedAt` > 90 days ago → HTTP request to Platform API for re-enrichment → update records
-- Purpose: Contact data stays fresh
+- Action: Search People where `lastEnrichedAt` > 90 days → re-enrich via Platform API
+
+**Snooze Resurfacer**
+- Trigger: Cron (hourly)
+- Action: Search Suggested Actions where `status` = Snoozed AND `snoozedUntil` <= now → update `status` → New
 
 ### Manual Workflows (user triggers via Cmd+K or button)
 
 **"Enrich this contact"**
 - Trigger: Manual (on Person record)
-- Action: HTTP request to Platform API with person details → enrichment waterfall → update Person record with email, LinkedIn, company data
-- Purpose: One-click enrichment from any contact record
+- Action: HTTP Request → Platform API enrichment → update Person
 
 **"Qualify this company"**
 - Trigger: Manual (on Company record)
-- Action: HTTP request to Platform API → Claude scores company against Company Profile ICP → update `icpScore` and `icpScoreReason`
-- Purpose: Instant ICP qualification on any company
+- Action: AI Agent step → score against ICP → update `icpScore`, `icpScoreReason`, `icpTier`
 
 **"Build list for this persona"**
 - Trigger: Manual
-- Action: Form (select persona) → HTTP request to Platform API → query database + enrich matches → create Person records → create Campaign (draft) with the list
-- Purpose: One-click list building with persona targeting
+- Action: Form (select persona) → HTTP Request → database query + enrich → create Person records → create Campaign (draft)
 
 **"Write messaging for this campaign"**
 - Trigger: Manual (on Campaign record in Draft status)
-- Action: HTTP request to Platform API → Claude generates sequence using Company Profile + Persona context → create Sequence record linked to Campaign
-- Purpose: AI-generated campaign messaging with full brand context
+- Action: AI Agent step → generate sequence using Company Profile + Persona → create Sequence record
 
 **"Launch this campaign"**
-- Trigger: Manual (on Campaign record with Sequence attached)
-- Action: Pre-flight checks (verify emails, check sending limits, validate messaging) → HTTP request to campaign infrastructure → update Campaign status to Active
-- Purpose: Guided campaign launch with safety checks
+- Trigger: Manual (on Campaign with Sequence attached)
+- Action: Pre-flight checks → HTTP Request to campaign infrastructure → update Campaign status to Active
 
 ---
 
