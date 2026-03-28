@@ -1,6 +1,6 @@
-# Succession CRM — Client Data Model Architecture
+# Succession CRM — Platform Architecture & Data Model
 
-> **Source of truth** for the client-facing CRM data model. Every new client instance is provisioned with this schema. Update this document first, then update the setup script (`packages/succession-mcp/src/setup-client-schema.js`) to match.
+> **Source of truth** for the Succession CRM platform — data model, infrastructure, integrations, and operational requirements. This is the master reference for internal development and agency handoff. Update this document first, then update implementation to match.
 
 ## Design Principles
 
@@ -683,6 +683,396 @@ To add a new integration:
 
 ---
 
+## Billing & Payments
+
+### Stripe Integration
+
+| Component | Purpose |
+|-----------|---------|
+| Stripe Checkout | Signup flow — free tier creates account, paid tier adds payment method |
+| Stripe Subscriptions | Manage £500/mo platform, £300/mo marketing add-on, DFY tiers |
+| Stripe Customer Portal | Clients self-serve upgrade/downgrade, update payment, view invoices |
+| Stripe Webhooks | `invoice.paid` → activate/renew, `invoice.payment_failed` → grace period, `customer.subscription.deleted` → downgrade to free |
+
+### Subscription Lifecycle
+
+```
+Signup (free)
+  → Create Stripe Customer (no payment method)
+  → Provision CRM workspace + free tier access
+  → MCP authenticates with API key, returns free-tier tools only
+
+Upgrade to paid
+  → Stripe Checkout with payment method
+  → Webhook: subscription.created
+  → Unlock full MCP tools, database export, enrichment, campaigns
+  → Provision Activepieces workspace, Cal.com team, Recall.ai config
+
+Payment failure
+  → Stripe retries (3 attempts over 7 days)
+  → After final failure: 7-day grace period (full access)
+  → After grace: downgrade to free tier (CRM still works, paid features locked)
+  → Data is NOT deleted — they can reactivate anytime
+
+Churn from DFY
+  → Cancel DFY subscription
+  → Auto-create £500/mo platform subscription (or £800 with marketing)
+  → Client keeps CRM, data, integrations — just loses managed service
+
+Full cancellation
+  → Downgrade to free tier (CRM + browse-only database)
+  → Data retained for 90 days, then archived
+  → Can reactivate within 90 days with full data restore
+```
+
+### Usage Metering
+
+Enrichment usage tracked per client per billing cycle. Stored in Supabase, checked by the MCP before enrichment calls.
+
+- **Free tier:** 0 enrichments (browse only)
+- **Paid tier:** Fair use (~1,000/month soft cap). Alert at 80%, flag for review at 150%.
+- **DFY tier:** Unlimited (included in service fee)
+
+Fair use cap will be refined based on actual usage data from dogfooding and early clients.
+
+---
+
+## Auth & Identity
+
+### Client Authentication Flow
+
+```
+Client signs up at succession.bio/signup
+  → Email + password (or Google OAuth)
+  → Stripe Customer created
+  → Twenty CRM workspace provisioned
+  → API key generated and stored
+  → Client receives:
+    1. CRM login URL (crm.succession.bio/workspace/{id})
+    2. MCP API key (for Claude Desktop / Claude Code plugin)
+    3. Welcome email with onboarding guide
+```
+
+### MCP Authentication
+
+On every MCP startup:
+1. Client's API key sent in environment variable
+2. MCP calls auth gateway: `GET /auth/verify?key={API_KEY}`
+3. Gateway returns: `{ tier: "paid", workspace_id: "xxx", features: [...] }`
+4. MCP enables/disables tools based on tier
+5. If key is invalid or subscription lapsed → MCP starts in free-tier mode
+
+### Single Sign-On Across Services
+
+All platform services authenticate through one identity:
+
+| Service | Auth method |
+|---------|------------|
+| Twenty CRM | Native Twenty auth (email/password or SSO) |
+| Activepieces | OAuth via CRM identity (Twenty as the identity provider) |
+| Cal.com | OAuth via CRM identity |
+| Mautic | OAuth via CRM identity (marketing add-on only) |
+| MCP Plugin | API key (tied to CRM identity) |
+
+**Implementation:** Twenty acts as the OAuth provider. All other services use "Login with Succession CRM." One login, everything connected.
+
+### Roles & Permissions
+
+| Role | Access |
+|------|--------|
+| **Admin** | Full access — billing, user management, integrations, all CRM data |
+| **Manager** | CRM data, campaigns, sequences, analytics. No billing or user management. |
+| **Rep** | Own contacts, assigned campaigns, meetings. Can't delete or bulk-modify. |
+| **Read-only** | Browse CRM and database. Can't create or modify records. |
+
+Roles enforced at the Twenty CRM level (Twenty has native RBAC). MCP respects the same roles via the auth gateway.
+
+---
+
+## Onboarding & Activation
+
+### First 15 Minutes (the "Aha" Path)
+
+The goal: client sees enriched data they didn't have before within 15 minutes of signing up.
+
+```
+Minute 0-2: Sign up
+  → Email/password or Google OAuth
+  → Choose: "Import from HubSpot" / "Import from CSV" / "Start fresh"
+
+Minute 2-5: Migration (if importing)
+  → Connect HubSpot (OAuth) or upload CSV
+  → Auto-map fields, preview import
+  → One click: import + auto-enrich from Succession database
+
+Minute 5-10: Company Profile setup (guided)
+  → "What does your company do?" → companyOverview
+  → "Who do you sell to?" → ICP fields (industry, size, geography)
+  → "What titles do you target?" → first Persona created
+  → "What's your tone?" → brandTone
+  → AI suggests: "Based on your ICP, here are 47 companies in our database that match."
+
+Minute 10-15: The "aha" moment
+  → Client sees 47 matching companies they didn't know about
+  → Each pre-scored with ICP fit score
+  → Click one: full company profile, employees, publications, funding
+  → "Upgrade to export these and start reaching out" (if free tier)
+  → OR: "Here are 12 contacts at these companies" (if paid)
+```
+
+### Onboarding Checklist (tracked in CRM)
+
+Automatically created as Tasks in the client's CRM when they sign up:
+
+- [ ] Complete company profile
+- [ ] Create at least one persona
+- [ ] Import or add 10+ contacts
+- [ ] Browse the life science database
+- [ ] Connect calendar (Cal.com or external)
+- [ ] Send first campaign (or schedule a sequence)
+- [ ] Book first meeting through the platform
+
+Each task links to a help doc. Progress visible in a "Getting Started" dashboard widget.
+
+---
+
+## Email Sending Infrastructure
+
+### The Question: Bison, or Build Our Own?
+
+This is a key architectural decision that affects cost, control, and client experience.
+
+**Option A: Clients use Bison (our existing infrastructure)**
+- Bison handles deliverability, warm-up, sending limits, bounce handling
+- We already have the API integration built
+- Clients get sender accounts provisioned through our system
+- We control the sending reputation
+- Risk: Bison is a dependency. If they change pricing or terms, we're exposed.
+
+**Option B: Clients bring their own sending**
+- Client connects their Gmail/Outlook/SMTP via OAuth
+- We route sequences through their own email
+- They own their sending reputation
+- More complex to manage (every client's deliverability is different)
+- No dependency on a third-party sending service
+
+**Option C: Hybrid (recommended)**
+- Default: Bison-powered sending through Succession domains (managed warm-up, shared reputation)
+- Optional: Client connects their own email (Gmail/Outlook) for personal sending
+- Both options available, client chooses per campaign
+
+### Domain & Deliverability Setup (for managed sending)
+
+When a client upgrades to paid:
+
+1. Provision sending domain(s): `{client}.outbound.succession.bio` or client's own domain
+2. Configure SPF, DKIM, DMARC records
+3. Warm up mailboxes (gradual volume increase over 2-3 weeks)
+4. Monitor deliverability metrics per client
+5. Bounce handling: auto-remove hard bounces, flag soft bounces
+
+### Sending Limits
+
+| Tier | Daily limit per mailbox | Mailboxes included |
+|------|------------------------|--------------------|
+| Paid (£500/mo) | 50 emails/day | 3 mailboxes |
+| Marketing add-on | 5,000 marketing emails/mo (Mautic) | Separate from outbound |
+| DFY | Managed by our team | As needed |
+
+---
+
+## Analytics & Reporting
+
+### Pre-Built Dashboards
+
+Twenty CRM has a native dashboard builder. Each client instance ships with pre-configured dashboards:
+
+**Pipeline Dashboard**
+- Deal count by stage (funnel visualization)
+- Total pipeline value
+- Average deal size
+- Win rate (closed won / total closed)
+- Average time in each stage
+- Deals created this month vs last
+
+**Campaign Performance Dashboard**
+- Active campaigns with key stats (sent, opened, replied, meetings)
+- Reply rate by campaign
+- Best-performing sequences
+- Meetings booked this week/month
+- Lead stage distribution across all campaigns
+
+**Database & Enrichment Dashboard**
+- Total contacts and companies in CRM
+- Enrichment status breakdown (enriched vs pending vs failed)
+- ICP score distribution
+- Contacts by source (database, import, inbound, event)
+- Enrichment usage this month
+
+**Meeting Intelligence Dashboard** (when Recall.ai is active)
+- Meetings this week/month
+- Average meeting duration
+- Outcome distribution (positive/neutral/negative)
+- Action items created vs completed
+- Competitor mentions trend
+- Signals detected from meetings
+
+### Custom Dashboards
+
+Clients can build their own dashboards using Twenty's dashboard builder. They can create charts, tables, and KPIs from any CRM data.
+
+**Question to resolve:** Can we build custom dashboard templates that auto-populate with the client's data? Or does Twenty's dashboard system require manual setup per instance? Needs investigation during dogfooding phase.
+
+---
+
+## Provisioning Automation
+
+### New Client Script
+
+Goal: fully automated provisioning. Admin runs one command, everything is set up.
+
+```bash
+node provision-client.js \
+  --name "Acme Biotech" \
+  --email "founder@acmebio.com" \
+  --tier "paid" \
+  --stripe-customer "cus_xxx"
+```
+
+**What it does:**
+1. Create Twenty CRM workspace
+2. Run `setup-client-schema.js` (data model)
+3. Create admin user account
+4. Generate MCP API key
+5. Create Activepieces workspace
+6. Create Cal.com team/org
+7. Provision sending domain + start warm-up
+8. Create onboarding task checklist
+9. Send welcome email with credentials
+10. If migrating: trigger import flow
+
+### Infrastructure Per Client
+
+| Component | Per-client cost | Provisioning |
+|-----------|----------------|-------------|
+| CRM workspace | ~£2/mo (multi-tenant DB share) | Automated |
+| Activepieces workspace | ~£1/mo | Automated |
+| Cal.com team | ~£0.50/mo | Automated |
+| Sending mailboxes (3x) | ~£5/mo | Semi-automated (DNS verification manual) |
+| Recall.ai | Usage-based (~£10/mo avg) | Automated |
+| **Total infra per client** | **~£18.50/mo** | |
+
+At £500/mo subscription, that's 96% gross margin before enrichment costs.
+
+---
+
+## Outstanding Questions
+
+### Email Sending
+
+- [ ] **Bison dependency:** Do we continue with Bison for campaign sending, or build/adopt our own sending infrastructure? Bison works well but is a third-party dependency. If we scale to 100+ clients all sending through Bison, what's the cost/risk model?
+- [ ] **Client-owned sending:** If a client wants to send from their own domain (not ours), what's the setup flow? Do we manage their DNS, or do they?
+- [ ] **Deliverability monitoring:** Do we need a dedicated deliverability tool, or can we build monitoring from Bison's reporting API?
+
+### Analytics & Dashboards
+
+- [ ] **Twenty dashboard templates:** Can we pre-build dashboard templates that auto-populate per client? Or does each dashboard need manual configuration? Need to test during dogfooding.
+- [ ] **Custom reporting API:** If Twenty's built-in dashboards aren't flexible enough, do we build a separate analytics layer? Or embed something like Metabase?
+
+### Mobile
+
+- [ ] **Twenty mobile readiness:** Twenty's current mobile experience is limited. This is not a launch blocker but needs to be on the roadmap. Options: responsive web improvements, PWA, or native mobile app.
+- [ ] **MCP on mobile:** Claude has mobile apps. Can clients use the MCP from Claude's mobile app? Need to test.
+- [ ] **Push notifications:** Cal.com meeting reminders, signal alerts, deal updates — these need a mobile notification channel. Novu (OSS notification infra) could handle this.
+
+### Legal & Compliance
+
+- [ ] **Terms of Service:** Need TOS covering: data ownership, data flywheel (do enriched contacts feed back into our database?), acceptable use, liability limits.
+- [ ] **Data Processing Agreement (DPA):** Required for GDPR compliance. Must define: what data we process, where it's stored, retention periods, deletion rights.
+- [ ] **Data residency:** Supabase and the services droplet are in specific regions. EU clients may require EU-only data storage. Need to define our data residency policy.
+- [ ] **HIPAA:** Some life science clients handle patient-adjacent data. Do we need a BAA? Recall.ai offers HIPAA BAA on their Enterprise tier. If a client records calls discussing patient data, this matters.
+- [ ] **Recording consent:** Two-party consent laws (California, Illinois, EU). Need: (1) consent language in Cal.com booking confirmations, (2) Recall.ai bot announces recording on join, (3) opt-out mechanism. Document jurisdiction requirements.
+- [ ] **Data flywheel legal review:** If we store enriched professional contact data back into our database (name, title, company, work email), this needs explicit TOS coverage and potentially GDPR legal basis analysis. Life science data has extra sensitivity.
+- [ ] **AGPL compliance:** Our CRM fork is public. Need to ensure any modifications include proper notices per AGPL Section 5. The NOTICE.md is in place but needs ongoing compliance as we add code.
+
+### Support
+
+- [ ] **Support model by tier:** Free = docs/community only? Paid = email support? DFY = dedicated Slack channel? Define SLAs.
+- [ ] **Help docs / knowledge base:** Where does this live? Self-hosted (GitBook, Docusaurus) or SaaS (Notion, Intercom)?
+- [ ] **In-app support:** Chat widget in the CRM? Or just a "Help" link to docs?
+- [ ] **Bug reporting:** GitHub Issues on the public repo? Or a private support channel?
+- [ ] **Onboarding calls:** Do paid clients get a 30-min onboarding call? Or is it fully self-serve with async support?
+
+### Infrastructure & Ops
+
+- [ ] **Backup strategy:** Client data backup frequency, retention, restore process. Twenty uses Postgres — need automated pg_dump or WAL-based backups.
+- [ ] **Disaster recovery:** If the services droplet goes down, what's the recovery time? Do we need a hot standby?
+- [ ] **Monitoring:** Uptime monitoring for CRM, Cal.com, Mautic, Activepieces. Consider OpenStatus (OSS, on Twenty's friends list) for a public status page.
+- [ ] **Alerting:** Who gets paged when something breaks? PagerDuty/OpsGenie, or simpler (Slack alerts)?
+- [ ] **Scaling:** At what client count does a single services droplet become insufficient? What's the vertical scaling ceiling before we need horizontal scaling?
+
+---
+
+## Risk Register
+
+Issues that must be actively managed as the platform is built and launched.
+
+### Execution Complexity
+
+**Risk:** We're building 12+ systems (CRM, Cal.com, Mautic, Activepieces, Recall.ai, MCP, database API, auth, billing, migration tooling, enrichment proxy, marketing site). A small team cannot ship and maintain all of this simultaneously.
+
+**Mitigation:** Ruthless phasing. Phase 1 = CRM + database browse + MCP + auth/billing. Nothing else. Each subsequent phase adds ONE system, fully stabilized before the next. Dogfooding internally catches issues before client exposure.
+
+### Free Migration Cost
+
+**Risk:** "Free migration from any CRM" could consume 2-8 hours per client for complex imports (50k+ contacts, custom properties, workflow migration). At scale, this doesn't work.
+
+**Mitigation:** Automate 90% of migrations. Self-serve migration wizard for simple cases (CSV, standard HubSpot/Pipedrive). Set a complexity threshold — under 10k contacts = automated. Over that = guided self-serve or paid migration service (one-time fee).
+
+### Fair Use Enrichment Limits
+
+**Risk:** £500/mo flat pricing with "fair use" enrichment means a heavy user (15 reps, 3,000 enrichments/month) could cost £300-450/mo in third-party API fees. Margin goes to zero.
+
+**Mitigation:** Define a real number for fair use before launching (likely ~1,000 enrichments/month). Alert at 80%, require conversation at 150%. Consider a second tier (£1,000/mo) for heavy users once usage patterns are clear. As the proprietary database grows, more lookups hit our data (zero cost) instead of third-party APIs.
+
+### AGPL Exposure
+
+**Risk:** Everything built in the CRM repo is public. A competitor could fork our UI customizations, custom apps, and Twenty integrations.
+
+**Mitigation:** Keep the CRM layer thin. The CRM is a display shell — the intelligence (AI skills, enrichment pipeline, database, context engine logic) lives in private repos. If a competitor forks the CRM, they get a nice UI with no brains behind it.
+
+### Twenty CRM Dependency
+
+**Risk:** Twenty is a 2-year-old open-source project. It could pivot, abandon self-hosting, or break API compatibility in a major version.
+
+**Mitigation:** Build via Twenty's API and custom objects, not by modifying core source code. If Twenty breaks compatibility, pin to a stable version. If abandoned, we maintain the fork — AGPL guarantees we always have the code. The fork approach is still 10x cheaper than building a CRM from scratch.
+
+### Recall.ai Vendor Lock-In
+
+**Risk:** Meeting Intelligence becomes a key differentiator. Recall.ai is the only provider for the "bot joins meetings" capability. Price increases or acquisition could impact us.
+
+**Mitigation:** Abstract the recording layer as a pluggable module. The AI analysis pipeline (the real value) only needs a transcript — it doesn't care where it comes from. If an OSS meeting bot emerges, swap it in. Clients using Gong/Fireflies get context-aware analysis through the Activepieces integration path regardless.
+
+### Multi-Tenant Data Isolation
+
+**Risk:** Multiple clients on the same Twenty instance. A bug exposing Client A's data to Client B would destroy trust.
+
+**Mitigation:** Verify Twenty's workspace isolation thoroughly during dogfooding. High-value DFY clients get isolated instances if needed. Implement audit logging. Security review and penetration testing before going multi-tenant with external clients.
+
+### Call Recording Consent
+
+**Risk:** Two-party consent laws (California, Illinois, EU countries) require all parties to agree to recording. If the platform makes it easy to record without consent, legal liability follows.
+
+**Mitigation:** Build consent into the product flow. Cal.com booking confirmations include consent language. Recall.ai bot announces itself when joining. Provide per-meeting recording toggle. Document jurisdiction requirements and surface them during onboarding.
+
+### Market Validation
+
+**Risk:** The entire plan assumes life science SMBs want an integrated platform and will switch CRMs. This has not been validated with cold prospects (only existing DFY clients who are biased).
+
+**Mitigation:** Before building beyond Phase 1, get 10+ conversations with life science founders/sales leaders who are NOT current clients. Test the offer: "Free CRM, free migration, life science database, AI tools. Would you switch?" If <50% say yes, rethink the positioning before investing further.
+
+---
+
 ## Future Considerations
 
 - **Sequence Editor UI** — Replace `stepsJson` TEXT field with a visual step editor component in the CRM
@@ -693,6 +1083,8 @@ To add a new integration:
 - **Multi-workspace** — If we move to true multi-tenant with workspace isolation, the Company Profile singleton pattern needs to be enforced at the app level
 - **Real-time meeting coaching** — Recall.ai supports media streaming. Future: live prompts during calls based on what's being discussed + CRM context
 - **Activepieces marketplace** — Build a library of Succession-specific flow templates that clients can one-click enable
+- **Mobile experience** — PWA or native app when Twenty's mobile support matures
+- **AI-powered pipeline forecasting** — Use meeting outcomes, signal data, and campaign engagement to predict deal close probability
 
 ---
 
@@ -700,5 +1092,6 @@ To add a new integration:
 
 | Date | Change | Reason |
 |------|--------|--------|
-| 2026-03-28 | Initial data model | Platform launch planning |
-| 2026-03-28 | Added Integrations Architecture section | Cal.com, Mautic, Papermark, Recall.ai meeting intelligence, Activepieces integration platform, bring-your-own tool support |
+| 2026-03-28 | Initial data model — 4 layers, 13 objects | Platform launch planning |
+| 2026-03-28 | Added Integrations Architecture | Cal.com, Mautic, Papermark, Recall.ai, Activepieces, BYOT support |
+| 2026-03-28 | Added Billing, Auth, Onboarding, Email, Analytics, Outstanding Questions, Risk Register | Complete platform architecture |
