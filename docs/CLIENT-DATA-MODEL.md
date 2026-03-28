@@ -69,6 +69,8 @@ Represents a prospect, customer, partner, or competitor in the client's pipeline
 | `headquartersCountry` | TEXT | HQ country | |
 | `headquartersCity` | TEXT | HQ city | |
 | `ownerUserId` | RELATION | Account owner (rep assigned) | Links to CRM user |
+| `doNotContact` | BOOLEAN | Blacklisted — exclude all contacts from outreach | Default: false. Applies to all People at this company. |
+| `dncReason` | SELECT | Why this company is blacklisted | Competitor, Existing Customer, Requested Removal, Bad Fit, Other |
 
 **Custom fields — ICP & Scoring (visible):**
 
@@ -130,6 +132,9 @@ Represents a contact at a prospect/customer company.
 | `ownerUserId` | RELATION | Contact owner (rep assigned) | Links to CRM user |
 | `researchArea` | TEXT | Research focus area | For scientists and R&D contacts |
 | `personalNote` | TEXT | Rep's personal notes about this contact | |
+| `doNotContact` | BOOLEAN | Blacklisted — exclude from all outreach | Default: false. Checked by campaign launch workflow. |
+| `dncReason` | SELECT | Why this person is blacklisted | Unsubscribed, Competitor, Existing Customer, Requested Removal, Bounced, Other |
+| `dncDate` | DATE_TIME | When DNC was set | Auto-set when `doNotContact` flips to true |
 
 **Custom fields — Scoring (visible):**
 
@@ -1702,6 +1707,283 @@ node provision-client.js \
 | **Total infra per client** | **~£18.50/mo** | |
 
 At £500/mo subscription, that's 96% gross margin before enrichment costs.
+
+---
+
+## Contact Deduplication
+
+Duplicates are inevitable — imports, database lookups, inbound leads, and enrichment all create overlapping records. Without dedup, CRM data quality degrades fast.
+
+### Dedup Strategy
+
+**On creation (preventive):**
+- Pre-loaded workflow triggers on Person created
+- Checks for existing Person with matching email (exact match)
+- If match found → merge instead of creating duplicate (update existing with new data)
+- Secondary check: name + company fuzzy match if no email match
+- Same pattern for Company: check `domainName` exact match on creation
+
+**On import (batch):**
+- Import flow runs dedup before creating records
+- Match by email (Person) or domain (Company)
+- Present duplicates to user: "3 contacts already exist — update or skip?"
+- Option to auto-merge (update existing records with imported data) or skip duplicates
+
+**On demand (cleanup):**
+- Manual workflow: "Find duplicates" — searches for People with same email, same name+company, or similar LinkedIn URL
+- Presents merge candidates in a list
+- Rep confirms which record to keep as primary
+
+### Merge Behavior
+
+When merging two Person records:
+- Keep the record with more data (more fields filled)
+- Merge all relations (Campaign Memberships, Meetings, Notes from both records)
+- Keep the most recent value for each field
+- Preserve all timeline history from both records
+- Log the merge as a Note: "Merged with {duplicate ID}"
+
+---
+
+## Unsubscribe & DNC Handling
+
+Legal requirement (CAN-SPAM, GDPR). Handled via `doNotContact` boolean on Person and Company objects + workflows.
+
+### How Unsubscribes Flow
+
+```
+Person replies "unsubscribe" or clicks unsubscribe link
+  → Sending engine (Bison or Gmail) detects unsubscribe
+  → Webhook fires to CRM
+  → Workflow triggers:
+    1. Set Person.doNotContact = true
+    2. Set Person.dncReason = "Unsubscribed"
+    3. Set Person.dncDate = now
+    4. Remove from all active Campaigns (update Campaign Memberships → Opted Out)
+    5. Create Suggested Action (Low priority): "Person unsubscribed — review if outreach was relevant"
+```
+
+### Campaign Launch DNC Check
+
+The "Launch Campaign" workflow includes a pre-flight step:
+1. Check all leads in the Campaign for `doNotContact = true`
+2. Check all leads' Companies for `doNotContact = true`
+3. Remove any DNC contacts from the Campaign before sending
+4. Alert: "{count} leads removed due to DNC status"
+
+### DNC at Company Level
+
+When `Company.doNotContact = true`, ALL People at that company are excluded from outreach. Useful for: competitors, existing customers who don't want cold outreach, companies that have explicitly asked not to be contacted.
+
+---
+
+## Deliverability Monitoring (Client-Owned Sending)
+
+When clients send from their own Gmail/Outlook, we don't control deliverability — but we can monitor and alert.
+
+### What We Track
+
+| Metric | Source | Alert Threshold |
+|--------|--------|----------------|
+| Bounce rate | Email status callbacks | > 5% → warning, > 10% → pause campaign |
+| Reply rate | Email thread tracking | < 1% after 100 sends → review messaging |
+| Spam complaints | Gmail/Outlook postmaster feedback (if available) | Any → immediate alert |
+| Daily send volume | Our sending layer counts | Approaching Gmail limit (500/day) → warn |
+
+### Workflow: Email Health Monitor
+
+- Trigger: Cron (daily)
+- Check all active campaigns using client-owned sending
+- Calculate bounce rate, reply rate per campaign
+- If bounce rate > 5%: Create Suggested Action (High): "Campaign {name} has {x}% bounce rate — review list quality or pause sending"
+- If approaching daily limit: Create Suggested Action: "You've sent {x}/{limit} emails today — {count} scheduled sends may be delayed"
+
+### What We Can't Monitor (client-owned sending)
+
+- Domain reputation score (Google Postmaster Tools requires DNS verification — client would need to set this up themselves)
+- Inbox placement rate (requires a tool like GlockApps or similar — future add-on)
+- Spam folder placement
+
+For managed sending (Bison), we have full visibility via Bison's reporting API.
+
+---
+
+## Import Flow
+
+Clients import data regularly — from events, partner lists, spreadsheets, other tools. The import experience needs to be smooth and safe.
+
+### Import Flow Design
+
+```
+Client uploads CSV (or connects via Activepieces from external tool)
+  │
+  ▼
+Step 1: Field Mapping
+  → Auto-detect columns (email, first name, company, etc.)
+  → Show mapping preview: "Column 'Company Name' → Company.name"
+  → Client confirms or adjusts mappings
+  │
+  ▼
+Step 2: Deduplication Check
+  → Match imported records against existing CRM data
+  → By email (Person) or domain (Company)
+  → Present results: "247 new, 53 duplicates, 12 invalid emails"
+  → Client chooses: create new only / update existing / skip duplicates
+  │
+  ▼
+Step 3: Auto-Enrichment
+  → If paid tier: auto-enrich new contacts from Succession database
+  → Fill in missing fields (company data, seniority, department)
+  → Calculate ICP scores for new Companies
+  │
+  ▼
+Step 4: Assignment
+  → Apply lead routing rules (if configured)
+  → Or assign to the importing user
+  → Set leadSource = "Import"
+  → Set firstTouchDate = now
+  │
+  ▼
+Step 5: Confirmation
+  → Summary: "{count} people created, {count} companies created, {count} enriched"
+  → Link to the imported records view
+```
+
+### Import Sources
+
+| Source | Method | Notes |
+|--------|--------|-------|
+| CSV file | Upload in CRM | Twenty has basic CSV import — we extend with dedup + enrichment |
+| HubSpot | Activepieces OAuth | Pull contacts/companies/deals in one flow |
+| Pipedrive | Activepieces OAuth | Pull contacts/organizations/deals |
+| Salesforce | Activepieces OAuth | Pull contacts/accounts/opportunities |
+| Succession Database | MCP / Platform API | "Import these 50 companies to my CRM" |
+| Event attendee list | CSV upload | Post-conference import with auto-enrichment |
+
+---
+
+## Notification System
+
+Reps need to know when things happen without living in the CRM all day.
+
+### Notification Types
+
+| Event | Notification | Channel |
+|-------|-------------|---------|
+| Suggested Action created (High priority) | Immediate alert | Email + in-CRM |
+| New meeting booked | Immediate | Email + in-CRM + calendar |
+| Deal stage changed | Immediate | In-CRM |
+| Reply received on campaign | Immediate | Email + in-CRM |
+| Daily digest (all Suggested Actions, campaign stats) | Scheduled (8am) | Email |
+| Weekly pipeline summary | Scheduled (Monday 9am) | Email |
+| Enrichment completed (batch) | When done | In-CRM |
+
+### Implementation
+
+**In-CRM notifications:** Twenty has a native notification system. Workflows create notifications via the Notification API. These appear in the bell icon in the CRM header.
+
+**Email notifications:** Workflows send emails via the Platform API or Twenty's native "Send Email" action. For digests, a scheduled workflow compiles the summary and sends.
+
+**Design principle:** Default to email for high-priority + digest. In-CRM for everything. Clients can configure which events trigger email notifications in their settings.
+
+---
+
+## API Key Management
+
+The MCP API key is the gateway to the platform for self-serve clients. It needs proper lifecycle management.
+
+### Key Lifecycle
+
+```
+Client signs up
+  → API key generated (UUID v4 + prefix: "sk_live_")
+  → Stored encrypted in Platform API database
+  → Emailed to client + shown in CRM settings page (once)
+  → Key is tied to: workspace_id, tier, created_at
+
+Client installs MCP
+  → Adds API key to environment variable
+  → MCP calls Platform API on startup: GET /auth/verify
+  → Returns: { tier, workspace_id, features[], rate_limits }
+  → MCP enables tools based on tier
+
+Key rotation
+  → Client can generate a new key in CRM settings
+  → Old key remains valid for 24 hours (grace period)
+  → After grace period, old key is revoked
+
+Key compromise
+  → Client revokes key in CRM settings (immediate)
+  → Generate new key
+  → All active MCP sessions with old key get rejected on next call
+```
+
+### Rate Limiting
+
+| Tier | Requests/minute | Enrichments/day | AI calls/day |
+|------|----------------|-----------------|-------------|
+| Free | 30 | 0 | 10 |
+| Paid (£500/mo) | 100 | 100 | 50 |
+| DFY | 200 | Unlimited | 100 |
+
+Rate limits enforced at the Platform API level per API key. Exceeding → HTTP 429 with `Retry-After` header.
+
+### Usage Tracking
+
+Every API call logged with: key_id, endpoint, timestamp, response_status. Aggregated for:
+- Monthly usage dashboard in CRM settings
+- Billing (if we ever add overage charges)
+- Abuse detection (anomalous spikes)
+
+---
+
+## Lead Routing & Territory Management
+
+For multi-rep teams, leads need to land with the right rep automatically.
+
+### Lead Routing Rules
+
+Pre-loaded workflow: "Route New Lead" — triggers on Person created.
+
+**Routing options (configured in CRM settings or Company Profile):**
+
+| Rule Type | How it works | Example |
+|-----------|-------------|---------|
+| **Round-robin** | Rotate evenly across reps | Lead 1 → Rep A, Lead 2 → Rep B, Lead 3 → Rep C, repeat |
+| **Territory (geography)** | Route by Company country/city | UK leads → Rep A, Germany leads → Rep B, US leads → Rep C |
+| **Territory (industry)** | Route by Company industry | Biotech → Rep A, CRO/CDMO → Rep B, Med Device → Rep C |
+| **Territory (account)** | Route by Company owner | If Company has an owner, new contacts go to the same rep |
+| **Named accounts** | Specific companies assigned to specific reps | "Xenogen Labs" → always Rep A |
+| **ICP tier** | Route by ICP score | Tier 1 → senior rep, Tier 2-3 → junior reps |
+| **Capacity-based** | Route to rep with fewest active leads | Balances workload automatically |
+
+### Implementation
+
+Routing rules stored as a configuration object (JSON) on the Company Profile or a separate RoutingConfig object. The "Route New Lead" workflow reads the config and applies rules in priority order:
+
+```
+1. Check if Company has an owner → assign to company owner
+2. Check named account rules → assign if matched
+3. Check territory rules (geography, then industry)
+4. Fall back to round-robin or capacity-based
+```
+
+The workflow sets `Person.ownerUserId` and creates a Suggested Action for the assigned rep: "New lead assigned to you: {name} at {company}."
+
+### Territory Management Object (future)
+
+For larger teams, a dedicated Territory object:
+
+| Field | Type | Description |
+|-------|------|-------------|
+| `name` | TEXT | Territory name (e.g., "EMEA Biotech") |
+| `ownerUserId` | RELATION | Rep who owns this territory |
+| `rules` | TEXT | JSON rules: geography, industry, company size filters |
+| `priority` | NUMBER | Evaluation order (lower = checked first) |
+| `leadCount` | NUMBER | Current leads in territory (auto-calculated) |
+| `dealValue` | CURRENCY | Open pipeline in territory (auto-calculated) |
+
+This is a Phase 2+ feature — round-robin and basic territory rules via workflow config are sufficient for V1.
 
 ---
 
