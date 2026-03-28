@@ -369,9 +369,317 @@ When spinning up a new client instance:
 2. **Create Company Profile** — One record with the client's company info (populated during onboarding)
 3. **Create Personas** — At least 1-2 personas defined during onboarding
 4. **Import existing data** — Migrate from HubSpot/Pipedrive/CSV, auto-enrich from database
-5. **Configure Cal.com** — Create team/org, set up booking pages
+5. **Configure Cal.com** — Create team/org in multi-tenant instance, set up booking pages per rep
 6. **Configure campaign infrastructure** — Set up sender accounts, domain verification
 7. **Enable signals** — Subscribe to signals matching their ICP
+8. **Provision Activepieces workspace** — Create client workspace, enable pre-built flows (Cal.com → CRM, Campaign → CRM)
+9. **Configure Recall.ai** — Register client's calendar for auto-join, test with a sample meeting
+10. **Connect external tools** — If client has existing tools (Gong, Google Calendar, etc.), set up OAuth connections in Activepieces
+
+---
+
+## Integrations Architecture
+
+### Design Philosophy
+
+The platform ships with a curated set of **pre-wired OSS integrations** that work out of the box. For everything else, an embedded integration platform (Activepieces) lets users connect their own tools via OAuth — no API keys, no code.
+
+**Dogfooding rule:** We build and run every integration internally first on our own CRM instance. Once stable, it becomes available to clients. This means our internal Succession CRM is always the most integrated instance, and client-facing integrations are battle-tested before release.
+
+### Infrastructure
+
+```
+Services Droplet (16GB)
+├── Cal.com .............. cal.succession.bio (scheduling)
+├── Mautic ............... marketing.succession.bio (marketing automation)
+├── Activepieces ......... connect.succession.bio (integration platform)
+├── Papermark ............ docs.succession.bio (document tracking)
+├── Caddy ................ reverse proxy + SSL
+└── Shared PostgreSQL
+
+All OAuth tokens and API credentials stored encrypted (AES-256)
+in Activepieces DB, isolated per client workspace.
+```
+
+### Pre-Wired Integrations (included, zero config)
+
+These ship with every instance and are configured during provisioning:
+
+#### Cal.com → CRM (Scheduling)
+
+| Trigger | Action | CRM Object |
+|---------|--------|------------|
+| Meeting booked | Create Meeting record, link to Person + Company | Meeting |
+| Meeting rescheduled | Update Meeting record | Meeting |
+| Meeting cancelled | Update Meeting status | Meeting |
+| New booking page created | Available as scheduling link on Person records | — |
+
+**Tech:** Cal.com webhooks → Activepieces flow → Twenty REST API
+**License:** AGPLv3 (all features available self-hosted, including round-robin and Teams features)
+
+#### Mautic → CRM (Marketing Automation) — Marketing Add-On
+
+| Trigger | Action | CRM Object |
+|---------|--------|------------|
+| Contact created in Mautic | Create/update Person in CRM | Person |
+| Email opened/clicked | Activity on Person timeline | Person timeline |
+| Form submitted | Create Person + Note with form data | Person, Note |
+| Lead score updated | Update Person record | Person (custom field) |
+| Contact added to segment | Tag Person in CRM | Person |
+| Campaign email bounced | Update Person email status | Person |
+
+**Bidirectional sync:**
+| CRM Trigger | Mautic Action |
+|-------------|---------------|
+| Person created in CRM | Create contact in Mautic |
+| Person stage changed to "Nurture" | Add to nurture segment |
+| Deal closed won | Add to customer segment |
+
+**Tech:** Mautic webhooks + REST API ↔ Activepieces ↔ Twenty REST API
+**License:** GPLv3 (fully self-hostable, no feature gates)
+
+#### Papermark → CRM (Document Tracking) — Marketing Add-On
+
+| Trigger | Action | CRM Object |
+|---------|--------|------------|
+| Document viewed | Activity on Person/Company timeline | Timeline event |
+| Document shared | Create Note with share link + tracking | Note |
+| View analytics updated | Update document view count | Custom field on Note |
+
+**Tech:** Papermark webhooks → Activepieces → Twenty REST API
+**License:** AGPLv3
+
+#### Succession Database → CRM
+
+| Action | What happens | CRM Object |
+|--------|-------------|------------|
+| User imports company from database | Company created with enriched data, `successionDbId` linked | Company |
+| User imports person from database | Person created with enriched data, linked to Company | Person |
+| Signal detected for saved company | Signal record created, `recentSignal` field updated on Company | Signal, Company |
+| Event bookmarked from database | Event Bookmark created with `successionEventId` | Event Bookmark |
+
+**Tech:** Succession MCP tools → Twenty REST API (direct, no Activepieces needed)
+**Gating:** Import requires paid plan. Free tier can browse but not push to CRM.
+
+#### Succession Campaign Infrastructure → CRM
+
+| Trigger | Action | CRM Object |
+|---------|--------|------------|
+| Campaign launched (Bison/HeyReach) | Campaign record created | Campaign |
+| Email sent/opened/replied | Activity on Person timeline | Person timeline |
+| LinkedIn message sent/replied | Activity on Person timeline | Person timeline |
+| Lead stage changed | Update Campaign Membership stage | Campaign Membership |
+| Meeting booked from campaign | Create Meeting, link to Campaign | Meeting, Campaign Membership |
+| Campaign stats updated | Update Campaign record counts | Campaign |
+
+**Tech:** Bison/HeyReach webhooks → Activepieces → Twenty REST API
+
+### Meeting Intelligence (Recall.ai)
+
+Context-aware meeting recording, transcription, and AI-powered notes. Unlike generic tools (Gong, Fireflies), Succession combines the transcript with CRM data to produce rich, actionable meeting intelligence.
+
+#### How It Works
+
+```
+BEFORE THE CALL
+  Cal.com meeting booked
+    → Pre-call prep triggered
+    → Pull from CRM:
+       • Person record (title, department, research area, previous interactions)
+       • Company record (industry, funding, ICP score, therapeutic area)
+       • Opportunity (deal stage, value)
+       • Company Profile (our products, value props, personas)
+       • Previous meetings (last discussion, open action items)
+       • Campaign history (what outreach they received)
+    → Context packet assembled
+
+DURING THE CALL
+  Recall.ai bot joins the meeting
+    → Real-time audio/video recording
+    → Live transcript streaming
+
+AFTER THE CALL
+  Full transcript + context packet → Claude API
+    → AI generates:
+       • Context-aware meeting summary
+       • Action items (tagged to CRM objects)
+       • Deal stage recommendation
+       • Suggested follow-up (references relevant case studies/products)
+       • Competitor mentions flagged
+       • Buying signals detected ("mentioned budget timeline", "asked about integration")
+    → Auto-update CRM:
+       • Meeting object created with summary + action items
+       • Tasks created from action items (assigned to rep)
+       • Opportunity stage updated if recommended
+       • Signal created if trigger detected
+       • Person/Company records updated with new intel
+```
+
+#### Why This Is Different
+
+| Generic tool (Gong/Fireflies) | Succession Meeting Intelligence |
+|-------------------------------|--------------------------------|
+| "Discussed pricing" | "Dr. Chen asked about FlowMax Pro pricing for their 12-person assay dev team. Referenced BD Biosciences as current vendor." |
+| "Follow up next week" | "Action: Send Xenogen Labs case study (40% assay dev time reduction — matches her stated bottleneck). Budget tied to Series C timeline (Q3 2026)." |
+| Generic summary | Summary references ICP score, persona match, relevant products, and previous meeting context |
+| No CRM updates | Auto-updates deal stage, creates tasks, flags signals |
+
+#### Cost Model
+
+| Component | Cost/hour | Per 30-min call |
+|-----------|-----------|----------------|
+| Recall.ai recording | $0.50/hr | $0.25 |
+| Transcription | $0.15/hr | $0.075 |
+| 30-day storage | $0.05/hr | $0.025 |
+| Claude API (analysis) | ~$0.20/hr | $0.10 |
+| **Total** | **$0.90/hr** | **~$0.45/call** |
+
+At 30 meetings/month for a 5-person team: **~$13.50/mo COGS.** Included in the £500/mo plan.
+
+**Free tier:** First 5 hours free (Recall.ai's free tier) = ~10 meetings. Good conversion lever.
+
+#### Recall.ai Details
+
+- **Platforms:** Zoom, Google Meet, Teams, Webex, GoTo Meeting, Slack
+- **Billing:** Prorated to the second
+- **Data residency:** US, EU, JP
+- **API:** Full REST API for bot lifecycle, recording retrieval, transcript access
+- **Not open source** — commercial API. This is the one non-OSS component in the stack.
+
+### Bring-Your-Own Integrations (via Activepieces)
+
+For tools clients already use, Activepieces provides a visual, no-code integration builder with OAuth credential management.
+
+#### Integration Platform: Activepieces
+
+**Why Activepieces over n8n:** MIT license for core. n8n's "Sustainable Use License" prohibits embedding in a product offered to clients. Activepieces lets us include it in the platform legally.
+
+**What clients see:** A "Connected Apps" page in the platform UI. Click "Connect," OAuth popup, authorize, done. No API keys, no code.
+
+**What we see:** Pre-built flow templates that clients can enable with one click. Custom "pieces" (Activepieces term for integrations) for Succession-specific workflows.
+
+#### Supported External Tools
+
+Clients can connect these via Activepieces (OAuth or API key, managed in the platform):
+
+**Call Recording / Meeting Notes:**
+| Tool | What syncs to CRM |
+|------|-------------------|
+| Gong | Call recordings, transcripts, action items → Meeting object + Person timeline |
+| Fireflies.ai | Transcripts, summaries → Meeting object + Notes |
+| Granola | Meeting notes, action items → Meeting object + Notes |
+| Zoom (native recording) | Recording links, transcripts → Meeting object |
+| Google Meet (native) | Recording links → Meeting object |
+| Microsoft Teams | Recording links, transcripts → Meeting object |
+
+**Calendars (if not using Cal.com):**
+| Tool | What syncs |
+|------|-----------|
+| Google Calendar | Events → Meeting objects, availability for scheduling |
+| Microsoft Outlook | Events → Meeting objects |
+| Calendly | Bookings → Meeting objects, linked to Person + Company |
+
+**Communication:**
+| Tool | What syncs |
+|------|-----------|
+| Gmail / Google Workspace | Sent/received emails → Person timeline |
+| Microsoft Outlook | Sent/received emails → Person timeline |
+| Slack | Channel messages, DMs (opt-in) → Activity feed |
+
+**Other CRMs (migration source):**
+| Tool | What syncs |
+|------|-----------|
+| HubSpot | Contacts, companies, deals, notes → Full CRM import |
+| Pipedrive | Contacts, organizations, deals → Full CRM import |
+| Salesforce | Contacts, accounts, opportunities → Full CRM import |
+
+**Marketing (if not using Mautic):**
+| Tool | What syncs |
+|------|-----------|
+| Mailchimp | Email campaign stats, subscriber activity → Person timeline |
+| ActiveCampaign | Automation events, contact activity → Person timeline |
+
+**Data / Enrichment:**
+| Tool | What syncs |
+|------|-----------|
+| Apollo | Contact/company data → Person + Company records |
+| LinkedIn Sales Navigator | Saved leads → Person records |
+| ZoomInfo | Contact data → Person + Company records |
+
+#### How Custom Integrations Work
+
+```
+1. Client opens connect.succession.bio
+2. Browses available integrations
+3. Clicks "Connect Gong"
+4. OAuth popup → authorizes Gong access
+5. Token stored encrypted in Activepieces
+6. Pre-built flow activates:
+   Gong call completed → webhook → Activepieces
+     → extract transcript + metadata
+     → match to Person by email
+     → create Meeting object in CRM
+     → add transcript as Note
+     → update Person timeline
+7. Client sees meetings auto-appearing in their CRM
+```
+
+#### Building New Integrations
+
+To add a new integration:
+
+1. Build an Activepieces "piece" (TypeScript, follows their SDK)
+2. Define triggers (webhooks/polling) and actions (API calls)
+3. Create a flow template that maps the tool's data to CRM objects
+4. Test internally on our CRM instance
+5. Release to clients
+
+**Standard mapping for any meeting tool → CRM:**
+```json
+{
+  "meeting": {
+    "meetingDate": "{{source.start_time}}",
+    "duration": "{{source.duration_minutes}}",
+    "meetingType": "{{mapped_type}}",
+    "summary": "{{source.summary || source.transcript_summary}}",
+    "actionItems": "{{source.action_items}}",
+    "recordingUrl": "{{source.recording_url}}"
+  },
+  "relations": {
+    "person": "{{match_by_email(source.participants)}}",
+    "company": "{{person.company}}",
+    "opportunity": "{{match_open_deal(person, company)}}"
+  }
+}
+```
+
+### Integration Rollout Plan
+
+**Phase 1 — Internal dogfooding (we use it first)**
+- Set up our own CRM instance on the client data model
+- Wire Cal.com → CRM (scheduling)
+- Wire Bison/HeyReach → CRM (campaign data)
+- Wire Granola → CRM (meeting notes — we already have this sync)
+- Deploy Activepieces on services droplet
+- Test Recall.ai for our own client calls
+
+**Phase 2 — Core integrations for clients**
+- Cal.com pre-wired (zero config for new instances)
+- Succession Database → CRM import flow
+- Campaign infrastructure → CRM sync
+- Recall.ai meeting intelligence (included in paid plan)
+- HubSpot / Pipedrive migration flows
+
+**Phase 3 — Bring-your-own tools**
+- Activepieces UI exposed to clients
+- Gong, Fireflies, Google Calendar, Outlook connectors
+- Gmail / Outlook email sync
+- Slack integration
+
+**Phase 4 — Marketing add-on integrations**
+- Mautic ↔ CRM bidirectional sync
+- Papermark → CRM document tracking
+- Mailchimp / ActiveCampaign connectors (for clients not using Mautic)
 
 ---
 
@@ -383,6 +691,8 @@ When spinning up a new client instance:
 - **Document tracking (Papermark sync)** — Add: Shared Document object with view analytics
 - **Database access tiers** — Free tier: browse-only (no `successionDbId` populated). Paid tier: import to CRM populates the link field
 - **Multi-workspace** — If we move to true multi-tenant with workspace isolation, the Company Profile singleton pattern needs to be enforced at the app level
+- **Real-time meeting coaching** — Recall.ai supports media streaming. Future: live prompts during calls based on what's being discussed + CRM context
+- **Activepieces marketplace** — Build a library of Succession-specific flow templates that clients can one-click enable
 
 ---
 
@@ -391,3 +701,4 @@ When spinning up a new client instance:
 | Date | Change | Reason |
 |------|--------|--------|
 | 2026-03-28 | Initial data model | Platform launch planning |
+| 2026-03-28 | Added Integrations Architecture section | Cal.com, Mautic, Papermark, Recall.ai meeting intelligence, Activepieces integration platform, bring-your-own tool support |
