@@ -1,0 +1,21 @@
+{
+  "name": "@succession/mcp-server",
+  "version": "0.1.0",
+  "description": "Succession CRM MCP Server — Life science sales & marketing platform",
+  "type": "module",
+  "main": "src/index.js",
+  "bin": {
+    "succession-mcp": "src/index.js"
+  },
+  "scripts": {
+    "start": "node src/index.js",
+    "dev": "node --watch src/index.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.12.1"
+  },
+  "engines": {
+    "node": ">=18.0.0"
+  },
+  "license": "AGPL-3.0"
+}
