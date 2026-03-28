@@ -386,19 +386,73 @@ The platform ships with a curated set of **pre-wired OSS integrations** that wor
 
 **Dogfooding rule:** We build and run every integration internally first on our own CRM instance. Once stable, it becomes available to clients. This means our internal Succession CRM is always the most integrated instance, and client-facing integrations are battle-tested before release.
 
+### Architecture: Two Automation Layers
+
+The platform has two distinct automation layers that serve different purposes:
+
+**Layer A: Twenty Workflows (internal automation)**
+- Triggers on CRM events, schedules, and webhooks
+- Handles all internal logic: record creation, AI analysis, notifications
+- Pre-loaded into every client instance during provisioning (via Twenty's workflow API)
+- Client can view, modify, and create additional workflows in the CRM UI
+
+**Layer B: Activepieces (external tool connections)**
+- The "Connected Apps" UI where clients OAuth into their external tools
+- Handles credential management (encrypted token storage, auto-refresh)
+- Routes external tool events into Twenty via webhook triggers
+- Client sees a simple "Connect Gong" / "Connect Google Calendar" interface
+
+**Why both:** Twenty workflows are powerful but don't manage OAuth tokens for external services. A client shouldn't need to configure webhooks or paste API keys. Activepieces gives them a friendly "click to connect" experience for their external tools, then routes data into Twenty where workflows take over.
+
+```
+External Tools                Activepieces                Twenty CRM
+──────────────                ────────────                ──────────
+Gong ──── OAuth ────→ ┌─────────────────────┐  webhook  ┌──────────────────┐
+Calendar ─ OAuth ────→ │  connect.succession │ ────────→ │  Workflows       │
+Slack ──── OAuth ────→ │  .bio               │           │  (pre-loaded)    │
+Fireflies  OAuth ────→ │                     │           │                  │
+                       │  Credential store   │           │  Create Meeting  │
+                       │  Flow routing       │           │  Update Person   │
+                       │  Data mapping       │           │  Generate Notes  │
+                       └─────────────────────┘           │  Score ICP       │
+                                                         │  Send alerts     │
+Cal.com ───── webhook directly ────────────────────────→ │                  │
+Recall.ai ─── webhook directly ────────────────────────→ │                  │
+Succession DB ─── Platform API ────────────────────────→ │                  │
+                                                         └──────────────────┘
+```
+
+Note: Cal.com and Recall.ai webhook directly into Twenty (no Activepieces needed) because they're our pre-wired tools — we control the configuration. Activepieces is for tools the CLIENT brings.
+
 ### Infrastructure
 
 ```
-Services Droplet (16GB)
-├── Cal.com .............. cal.succession.bio (scheduling)
-├── Mautic ............... marketing.succession.bio (marketing automation)
-├── Activepieces ......... connect.succession.bio (integration platform)
-├── Papermark ............ docs.succession.bio (document tracking)
-├── Caddy ................ reverse proxy + SSL
+CRM Droplet (existing, 4-8GB)
+├── Twenty CRM .............. crm.succession.bio
+│   ├── Workflow engine (pre-loaded automations)
+│   ├── Email sync (Gmail/Outlook)
+│   ├── Calendar sync
+│   └── Custom apps (Succession extensions)
+
+Services Droplet (8-16GB)
+├── Cal.com ................ cal.succession.bio (scheduling)
+├── Mautic ................. marketing.succession.bio (marketing automation)
+├── Activepieces ........... connect.succession.bio (external tool connections)
+├── Papermark .............. docs.succession.bio (document tracking)
+├── Caddy .................. reverse proxy + SSL
 └── Shared PostgreSQL
 
-All OAuth tokens and API credentials stored encrypted (AES-256)
-in Activepieces DB, isolated per client workspace.
+Platform API (Cloudflare Workers)
+├── Auth gateway ........... API key validation, tier checks
+├── Database proxy ......... Queries to Succession DB (Supabase)
+├── Enrichment proxy ....... Routes to Clay/LeadMagic/Apollo
+├── AI proxy ............... Claude API calls with context injection
+└── Usage metering ......... Track enrichments per client
+
+External SaaS
+├── Recall.ai .............. Meeting recording + transcription
+├── Stripe ................. Billing + subscriptions
+└── Supabase ............... Life science database
 ```
 
 ### Pre-Wired Integrations (included, zero config)
@@ -414,7 +468,7 @@ These ship with every instance and are configured during provisioning:
 | Meeting cancelled | Update Meeting status | Meeting |
 | New booking page created | Available as scheduling link on Person records | — |
 
-**Tech:** Cal.com webhooks → Activepieces flow → Twenty REST API
+**Tech:** Cal.com webhooks → Twenty workflow (webhook trigger) → record creation. Pre-wired, no Activepieces needed.
 **License:** AGPLv3 (all features available self-hosted, including round-robin and Teams features)
 
 #### Mautic → CRM (Marketing Automation) — Marketing Add-On
@@ -657,29 +711,119 @@ To add a new integration:
 
 **Phase 1 — Internal dogfooding (we use it first)**
 - Set up our own CRM instance on the client data model
-- Wire Cal.com → CRM (scheduling)
-- Wire Bison/HeyReach → CRM (campaign data)
-- Wire Granola → CRM (meeting notes — we already have this sync)
+- Build pre-loaded workflows, test on our own instance
+- Wire Cal.com → CRM via Twenty webhook workflow
+- Wire Bison/HeyReach → CRM via Twenty webhook workflow
+- Wire Granola → CRM (we already have this sync)
+- Test Recall.ai meeting intelligence with our own client calls
 - Deploy Activepieces on services droplet
-- Test Recall.ai for our own client calls
 
 **Phase 2 — Core integrations for clients**
-- Cal.com pre-wired (zero config for new instances)
+- Pre-loaded workflows ship with every new instance (provisioning script)
+- Cal.com pre-wired (zero config)
 - Succession Database → CRM import flow
 - Campaign infrastructure → CRM sync
 - Recall.ai meeting intelligence (included in paid plan)
 - HubSpot / Pipedrive migration flows
 
 **Phase 3 — Bring-your-own tools**
-- Activepieces UI exposed to clients
-- Gong, Fireflies, Google Calendar, Outlook connectors
-- Gmail / Outlook email sync
+- Activepieces UI exposed to clients (connect.succession.bio)
+- Gong, Fireflies, Google Calendar, Outlook connectors via Activepieces
+- Gmail / Outlook email sync (Twenty native)
 - Slack integration
 
 **Phase 4 — Marketing add-on integrations**
 - Mautic ↔ CRM bidirectional sync
 - Papermark → CRM document tracking
 - Mailchimp / ActiveCampaign connectors (for clients not using Mautic)
+
+---
+
+## Pre-Loaded Workflows
+
+Twenty's workflow engine supports programmatic creation via the `create_complete_workflow` tool API. Workflows are created during provisioning and are active at first login. Clients can view, modify, disable, or extend them.
+
+### How Pre-Loading Works
+
+During the provisioning script (`provision-client.js`):
+
+1. Authenticate as workspace admin
+2. Call Twenty's `create_complete_workflow` API for each workflow definition
+3. Each definition includes: trigger config, steps, edges, and `activate: true`
+4. Workflows appear in the client's Automations tab immediately
+
+Workflow definitions are stored as JSON templates in the codebase. To update a workflow for all future clients, update the template. Existing clients keep their version (they may have customized it).
+
+### Always-On Workflows (automated, active by default)
+
+**Signal → Company Update**
+- Trigger: Record created (Signal object)
+- Action: Update linked Company's `recentSignal` and `recentSignalDate` fields
+- Purpose: Company records always show the latest signal without manual work
+
+**Calendar → Meeting Prep**
+- Trigger: Record created (Calendar Event with external participant)
+- Action: HTTP request to Platform API → gather Person + Company context → create Note on the linked Person with pre-call brief
+- Purpose: Rep has context before every meeting without doing anything
+
+**Recall.ai → Meeting Intelligence**
+- Trigger: Webhook (from Recall.ai on call completion)
+- Action: HTTP request to Platform API (sends transcript + CRM context to Claude) → create Meeting record → create Tasks from action items → update Opportunity if recommended
+- Purpose: AI-powered meeting notes with full CRM context, zero manual input
+
+**Email Reply → Stage Update**
+- Trigger: Record updated (Email / Message received from external contact)
+- Action: If linked Person's `leadStage` is "Contacted," update to "Interested"
+- Purpose: Automatic pipeline progression based on engagement
+
+**Campaign Stats Sync**
+- Trigger: Cron (every 6 hours)
+- Action: HTTP request to Platform API → fetch campaign stats from sending infrastructure → update Campaign records
+- Purpose: Campaign performance always up-to-date without manual refresh
+
+### Scheduled Workflows (run on a timer)
+
+**Prospector (daily)**
+- Trigger: Cron (daily at 8am client timezone)
+- Action: HTTP request to Platform API → query database for new ICP-matching companies → for each match, create Company record with `icpScore` and `icpScoreReason` → create Task for admin: "Review 5 new ICP matches"
+- Purpose: Client wakes up to fresh prospects every morning
+
+**Pipeline Coach (weekly)**
+- Trigger: Cron (weekly, Monday 9am)
+- Action: Search Opportunities where stage hasn't changed in 14+ days → HTTP request to Platform API (Claude analysis with deal context) → create Tasks with recommendations per stale deal
+- Purpose: Prevents deals from going cold
+
+**Enrichment Refresh (monthly)**
+- Trigger: Cron (1st of month)
+- Action: Search People where `lastEnrichedAt` > 90 days ago → HTTP request to Platform API for re-enrichment → update records
+- Purpose: Contact data stays fresh
+
+### Manual Workflows (user triggers via Cmd+K or button)
+
+**"Enrich this contact"**
+- Trigger: Manual (on Person record)
+- Action: HTTP request to Platform API with person details → enrichment waterfall → update Person record with email, LinkedIn, company data
+- Purpose: One-click enrichment from any contact record
+
+**"Qualify this company"**
+- Trigger: Manual (on Company record)
+- Action: HTTP request to Platform API → Claude scores company against Company Profile ICP → update `icpScore` and `icpScoreReason`
+- Purpose: Instant ICP qualification on any company
+
+**"Build list for this persona"**
+- Trigger: Manual
+- Action: Form (select persona) → HTTP request to Platform API → query database + enrich matches → create Person records → create Campaign (draft) with the list
+- Purpose: One-click list building with persona targeting
+
+**"Write messaging for this campaign"**
+- Trigger: Manual (on Campaign record in Draft status)
+- Action: HTTP request to Platform API → Claude generates sequence using Company Profile + Persona context → create Sequence record linked to Campaign
+- Purpose: AI-generated campaign messaging with full brand context
+
+**"Launch this campaign"**
+- Trigger: Manual (on Campaign record with Sequence attached)
+- Action: Pre-flight checks (verify emails, check sending limits, validate messaging) → HTTP request to campaign infrastructure → update Campaign status to Active
+- Purpose: Guided campaign launch with safety checks
 
 ---
 
