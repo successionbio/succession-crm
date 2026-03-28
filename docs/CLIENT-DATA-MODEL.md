@@ -1251,6 +1251,105 @@ These run silently in the background to keep data fresh:
 
 ---
 
+## Sequence Execution & Sending Architecture
+
+Twenty CRM does not have native email/LinkedIn sequence sending. We build this as a layer on top of the CRM using the Sequence object, Campaign infrastructure, and external sending tools.
+
+### How Sequences Work End-to-End
+
+```
+1. CREATE: Client builds sequence in CRM
+   → MCP/AI generates draft ("write a 4-step email sequence for VP R&D")
+   → Or client creates manually in the Sequence editor (Twenty custom app)
+   → Sequence object stores steps in stepsJson
+
+2. ATTACH: Client creates Campaign, links Sequence + lead list
+   → Campaign object references Sequence (relation)
+   → Campaign Memberships link People to Campaign
+
+3. LAUNCH: Client triggers "Launch Campaign" workflow
+   → Pre-flight checks (verify emails, check sending limits)
+   → Platform API pushes sequence + leads to the sending engine
+   → Campaign status → Active
+
+4. EXECUTE: Sending engine runs the sequence
+   → Sends step 1 to all leads
+   → Waits {waitDays}
+   → Sends step 2 to leads who haven't replied
+   → Continues through all steps
+
+5. TRACK: Activity flows back into CRM
+   → Webhooks from sending engine → Twenty workflows
+   → Update Campaign stats, Person timeline, Campaign Membership stage
+   → Suggested Actions created for positive replies
+```
+
+### Email Sending: Hybrid Model
+
+Clients have two options, selectable per campaign:
+
+**Option A: Send from their own email (low volume)**
+- Client connects Gmail or Outlook via Activepieces (OAuth)
+- Platform API sends through their mailbox using Gmail/Outlook API
+- Sends from their actual email address — most authentic
+- Limits: ~50-100 emails/day per connected mailbox
+- Best for: small teams, highly personalized outbound, <50 leads per campaign
+- Tracking: open/click tracking via Succession tracking pixel + redirect links
+
+**Option B: Send from managed infrastructure (high volume)**
+- We provision sending domain(s) for the client (e.g., `outreach.clientdomain.com`)
+- Emails sent via Bison API through Platform API
+- SPF, DKIM, DMARC configured. Warm-up managed.
+- Limits: scales with number of mailboxes provisioned
+- Best for: larger campaigns, multiple sequences running simultaneously
+- Tracking: native Bison tracking → webhooks → CRM
+
+**DFY clients:** Always use our managed infrastructure (Bison). Campaign data syncs from Bison into the CRM via existing `sync-campaigns.js` and twenty-sync worker. No change from current setup.
+
+### LinkedIn: HeyReach Integration
+
+No reliable OSS LinkedIn automation tools exist (LinkedIn actively blocks them). LinkedIn outreach runs through HeyReach:
+
+**For self-serve clients:**
+- We provision a HeyReach workspace per client
+- Client connects their LinkedIn account in HeyReach
+- CRM creates the sequence and lead list → Platform API pushes to HeyReach API
+- HeyReach executes: connection requests, follow-up messages, InMails
+- HeyReach webhooks → Activepieces → Twenty workflow → update Campaign stats + Person timeline
+
+**For DFY clients:**
+- We manage HeyReach directly (current setup, unchanged)
+- Data syncs into CRM via existing `sync-campaign-leads.js`
+
+**LinkedIn campaigns in the CRM:**
+- Same Campaign + Sequence objects, just with `channel = LinkedIn`
+- Sequence steps have `body` (message text) but no `subject` (LinkedIn doesn't have subject lines)
+- Campaign Membership tracks: `linkedinSent`, `linkedinReplied`, connection status
+
+### Sequence Editor (Twenty Custom App)
+
+The `stepsJson` field on the Sequence object stores the raw data. Clients need a proper editing UI:
+
+**Phase 1 (MCP-first):**
+- Client uses Claude: "Write a 4-step email sequence targeting VP R&D at Series B biotechs. Use our consultative tone. Reference the Xenogen case study."
+- AI generates sequence using Company Profile context → writes to Sequence object
+- Client reviews in a simple read-only rendered view in the CRM
+
+**Phase 2 (Custom App):**
+- Build a React component in Twenty's app framework: step-by-step editor
+- Add step, edit subject/body with rich text, set wait days, reorder/delete steps
+- Preview with merge field rendering
+- Reads/writes `stepsJson` under the hood
+- AI assist button: "Rewrite this step" / "Make this shorter" / "Add a P.S."
+
+**Phase 3 (Full editor):**
+- Spintax support in the editor (preview variants)
+- A/B testing (variant steps, winner selection)
+- Conditional steps (if opened step 1, send version A of step 2)
+- Template library (save/load sequences)
+
+---
+
 ## Unified Platform: CRM Replaces the Client Portal
 
 ### Background
