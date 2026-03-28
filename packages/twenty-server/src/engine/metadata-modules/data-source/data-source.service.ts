@@ -102,7 +102,7 @@ export class DataSourceService {
 
     // Dual-write: clear workspace.databaseSchema on delete
     await this.workspaceRepository.update(workspaceId, {
-      databaseSchema: '',
+      databaseSchema: null,
     });
   }
 }
