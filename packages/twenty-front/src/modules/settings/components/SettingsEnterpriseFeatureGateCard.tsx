@@ -26,9 +26,7 @@ export const SettingsEnterpriseFeatureGateCard = ({
             accent="blue"
             size="small"
             Icon={IconArrowUp}
-            onClick={() =>
-              navigateSettings(SettingsPath.AdminPanelEnterprise)
-            }
+            onClick={() => navigateSettings(SettingsPath.AdminPanelEnterprise)}
           />
         }
       />
