@@ -1,6 +1,6 @@
 import chalk from 'chalk';
-import { isNonEmptyString } from '@sniptt/guards';
 import { Option } from 'nest-commander';
+import { isDefined } from 'twenty-shared/utils';
 import { WorkspaceActivationStatus } from 'twenty-shared/workspace';
 import { In, MoreThanOrEqual, type Repository } from 'typeorm';
 
@@ -49,9 +49,6 @@ export abstract class WorkspacesMigrationCommandRunner<
     success: [],
   };
 
-  // @deprecated - dataSourceService parameter is kept for backward
-  // compatibility but is no longer used internally. Reads now use
-  // workspace.databaseSchema instead.
   constructor(
     protected readonly workspaceRepository: Repository<WorkspaceEntity>,
     protected readonly globalWorkspaceOrmManager: GlobalWorkspaceOrmManager,
@@ -146,12 +143,12 @@ export abstract class WorkspacesMigrationCommandRunner<
 
         await this.globalWorkspaceOrmManager.executeInWorkspaceContext(
           async () => {
-            const workspace = await this.workspaceRepository.findOne({
-              select: ['databaseSchema'],
-              where: { id: workspaceId },
-            });
+            const workspaceHasDataSource =
+              await this.dataSourceService.getLastDataSourceMetadataFromWorkspaceId(
+                workspaceId,
+              );
 
-            const dataSource = isNonEmptyString(workspace?.databaseSchema)
+            const dataSource = isDefined(workspaceHasDataSource)
               ? await this.globalWorkspaceOrmManager.getGlobalWorkspaceDataSource()
               : undefined;
 

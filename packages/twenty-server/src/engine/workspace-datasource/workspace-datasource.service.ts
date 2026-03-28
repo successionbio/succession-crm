@@ -3,9 +3,12 @@ import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 
 import { msg } from '@lingui/core/macro';
 import { isNonEmptyString } from '@sniptt/guards';
+import { FeatureFlagKey } from 'twenty-shared/types';
 import { type DataSource, type EntityManager, Repository } from 'typeorm';
 
+import { FeatureFlagService } from 'src/engine/core-modules/feature-flag/services/feature-flag.service';
 import { WorkspaceEntity } from 'src/engine/core-modules/workspace/workspace.entity';
+import { DataSourceService } from 'src/engine/metadata-modules/data-source/data-source.service';
 import {
   PermissionsException,
   PermissionsExceptionCode,
@@ -19,15 +22,32 @@ export class WorkspaceDataSourceService {
     private readonly workspaceRepository: Repository<WorkspaceEntity>,
     @InjectDataSource()
     private readonly coreDataSource: DataSource,
+    private readonly featureFlagService: FeatureFlagService,
+    private readonly dataSourceService: DataSourceService,
   ) {}
 
   public async checkSchemaExists(workspaceId: string) {
-    const workspace = await this.workspaceRepository.findOne({
-      select: ['databaseSchema'],
-      where: { id: workspaceId },
-    });
+    const isDataSourceMigrated =
+      await this.featureFlagService.isFeatureEnabled(
+        FeatureFlagKey.IS_DATASOURCE_MIGRATED,
+        workspaceId,
+      );
 
-    return isNonEmptyString(workspace?.databaseSchema);
+    if (isDataSourceMigrated) {
+      const workspace = await this.workspaceRepository.findOne({
+        select: ['databaseSchema'],
+        where: { id: workspaceId },
+      });
+
+      return isNonEmptyString(workspace?.databaseSchema);
+    }
+
+    const dataSources =
+      await this.dataSourceService.getDataSourcesMetadataFromWorkspaceId(
+        workspaceId,
+      );
+
+    return dataSources.length > 0;
   }
 
   /**
