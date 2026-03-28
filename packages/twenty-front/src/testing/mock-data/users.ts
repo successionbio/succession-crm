@@ -159,7 +159,6 @@ export const mockCurrentWorkspace = {
   ],
   workspaceMembersCount: 1,
   databaseSchema: '',
-  databaseUrl: '',
   isTwoFactorAuthenticationEnforced: false,
   eventLogRetentionDays: 90,
   __typename: 'Workspace',

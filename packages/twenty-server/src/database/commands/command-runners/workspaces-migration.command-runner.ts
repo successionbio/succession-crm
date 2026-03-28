@@ -1,12 +1,12 @@
 import chalk from 'chalk';
+import { isNonEmptyString } from '@sniptt/guards';
 import { Option } from 'nest-commander';
-import { isDefined } from 'twenty-shared/utils';
 import { WorkspaceActivationStatus } from 'twenty-shared/workspace';
 import { In, MoreThanOrEqual, type Repository } from 'typeorm';
 
 import { MigrationCommandRunner } from 'src/database/commands/command-runners/migration.command-runner';
 import { WorkspaceEntity } from 'src/engine/core-modules/workspace/workspace.entity';
-import { DataSourceService } from 'src/engine/metadata-modules/data-source/data-source.service';
+import { type DataSourceService } from 'src/engine/metadata-modules/data-source/data-source.service';
 import { GlobalWorkspaceDataSource } from 'src/engine/twenty-orm/global-workspace-datasource/global-workspace-datasource';
 import { type GlobalWorkspaceOrmManager } from 'src/engine/twenty-orm/global-workspace-datasource/global-workspace-orm.manager';
 import { buildSystemAuthContext } from 'src/engine/twenty-orm/utils/build-system-auth-context.util';
@@ -49,6 +49,9 @@ export abstract class WorkspacesMigrationCommandRunner<
     success: [],
   };
 
+  // @deprecated - dataSourceService parameter is kept for backward
+  // compatibility but is no longer used internally. Reads now use
+  // workspace.databaseSchema instead.
   constructor(
     protected readonly workspaceRepository: Repository<WorkspaceEntity>,
     protected readonly globalWorkspaceOrmManager: GlobalWorkspaceOrmManager,
@@ -143,12 +146,12 @@ export abstract class WorkspacesMigrationCommandRunner<
 
         await this.globalWorkspaceOrmManager.executeInWorkspaceContext(
           async () => {
-            const workspaceHasDataSource =
-              await this.dataSourceService.getLastDataSourceMetadataFromWorkspaceId(
-                workspaceId,
-              );
+            const workspace = await this.workspaceRepository.findOne({
+              select: ['databaseSchema'],
+              where: { id: workspaceId },
+            });
 
-            const dataSource = isDefined(workspaceHasDataSource)
+            const dataSource = isNonEmptyString(workspace?.databaseSchema)
               ? await this.globalWorkspaceOrmManager.getGlobalWorkspaceDataSource()
               : undefined;
 

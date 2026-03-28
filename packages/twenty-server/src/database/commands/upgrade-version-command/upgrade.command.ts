@@ -36,6 +36,7 @@ import { FixInvalidStandardUniversalIdentifiersCommand } from 'src/database/comm
 import { SeedServerIdCommand } from 'src/database/commands/upgrade-version-command/1-19/1-19-seed-server-id.command';
 import { BackfillCommandMenuItemsCommand } from 'src/database/commands/upgrade-version-command/1-20/1-20-backfill-command-menu-items.command';
 import { BackfillNavigationMenuItemTypeCommand } from 'src/database/commands/upgrade-version-command/1-20/1-20-backfill-navigation-menu-item-type.command';
+import { BackfillWorkspaceDatabaseSchemaCommand } from 'src/database/commands/upgrade-version-command/1-20/1-20-backfill-workspace-database-schema.command';
 import { BackfillPageLayoutsAndFieldsWidgetViewFieldsCommand } from 'src/database/commands/upgrade-version-command/1-20/1-20-backfill-page-layouts-and-fields-widget-view-fields.command';
 import { IdentifyFieldPermissionMetadataCommand } from 'src/database/commands/upgrade-version-command/1-20/1-20-identify-field-permission-metadata.command';
 import { BackfillSelectFieldOptionIdsCommand } from 'src/database/commands/upgrade-version-command/1-20/1-20-backfill-select-field-option-ids.command';
@@ -121,6 +122,7 @@ export class UpgradeCommand extends UpgradeCommandRunner {
     protected readonly backfillSelectFieldOptionIdsCommand: BackfillSelectFieldOptionIdsCommand,
     protected readonly updateStandardIndexViewNamesCommand: UpdateStandardIndexViewNamesCommand,
     protected readonly makeWorkflowSearchableCommand: MakeWorkflowSearchableCommand,
+    protected readonly backfillWorkspaceDatabaseSchemaCommand: BackfillWorkspaceDatabaseSchemaCommand,
   ) {
     super(
       workspaceRepository,
@@ -190,6 +192,7 @@ export class UpgradeCommand extends UpgradeCommandRunner {
       this.backfillSelectFieldOptionIdsCommand,
       this.updateStandardIndexViewNamesCommand,
       this.makeWorkflowSearchableCommand,
+      this.backfillWorkspaceDatabaseSchemaCommand,
     ];
 
     this.allCommands = {

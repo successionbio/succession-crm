@@ -1,10 +1,11 @@
 import { Injectable } from '@nestjs/common';
-import { InjectDataSource } from '@nestjs/typeorm';
+import { InjectDataSource, InjectRepository } from '@nestjs/typeorm';
 
 import { msg } from '@lingui/core/macro';
-import { type DataSource, type EntityManager } from 'typeorm';
+import { isNonEmptyString } from '@sniptt/guards';
+import { type DataSource, type EntityManager, Repository } from 'typeorm';
 
-import { DataSourceService } from 'src/engine/metadata-modules/data-source/data-source.service';
+import { WorkspaceEntity } from 'src/engine/core-modules/workspace/workspace.entity';
 import {
   PermissionsException,
   PermissionsExceptionCode,
@@ -14,18 +15,19 @@ import { getWorkspaceSchemaName } from 'src/engine/workspace-datasource/utils/ge
 @Injectable()
 export class WorkspaceDataSourceService {
   constructor(
-    private readonly dataSourceService: DataSourceService,
+    @InjectRepository(WorkspaceEntity)
+    private readonly workspaceRepository: Repository<WorkspaceEntity>,
     @InjectDataSource()
     private readonly coreDataSource: DataSource,
   ) {}
 
   public async checkSchemaExists(workspaceId: string) {
-    const dataSource =
-      await this.dataSourceService.getDataSourcesMetadataFromWorkspaceId(
-        workspaceId,
-      );
+    const workspace = await this.workspaceRepository.findOne({
+      select: ['databaseSchema'],
+      where: { id: workspaceId },
+    });
 
-    return dataSource.length > 0;
+    return isNonEmptyString(workspace?.databaseSchema);
   }
 
   /**

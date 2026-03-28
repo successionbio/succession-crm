@@ -1,6 +1,7 @@
 import { Injectable } from '@nestjs/common';
 
 import { makeExecutableSchema } from '@graphql-tools/schema';
+import { isNonEmptyString } from '@sniptt/guards';
 import { GraphQLSchema, printSchema } from 'graphql';
 import { gql } from 'graphql-tag';
 import { isDefined } from 'twenty-shared/utils';
@@ -10,7 +11,6 @@ import { workspaceResolverBuilderMethodNames } from 'src/engine/api/graphql/work
 import { WorkspaceResolverFactory } from 'src/engine/api/graphql/workspace-resolver-builder/workspace-resolver.factory';
 import { WorkspaceGraphQLSchemaGenerator } from 'src/engine/api/graphql/workspace-schema-builder/workspace-graphql-schema.factory';
 import { WorkspaceEntity } from 'src/engine/core-modules/workspace/workspace.entity';
-import { DataSourceService } from 'src/engine/metadata-modules/data-source/data-source.service';
 import {
   FlatEntityMapsException,
   FlatEntityMapsExceptionCode,
@@ -28,7 +28,6 @@ import { TWENTY_STANDARD_APPLICATION } from 'src/engine/workspace-manager/twenty
 @Injectable()
 export class WorkspaceSchemaFactory {
   constructor(
-    private readonly dataSourceService: DataSourceService,
     private readonly scalarsExplorerService: ScalarsExplorerService,
     private readonly workspaceGraphQLSchemaGenerator: WorkspaceGraphQLSchemaGenerator,
     private readonly workspaceResolverFactory: WorkspaceResolverFactory,
@@ -40,12 +39,7 @@ export class WorkspaceSchemaFactory {
     workspace: WorkspaceEntity,
     applicationId?: string,
   ): Promise<GraphQLSchema> {
-    const dataSourcesMetadata =
-      await this.dataSourceService.getDataSourcesMetadataFromWorkspaceId(
-        workspace.id,
-      );
-
-    if (!dataSourcesMetadata || dataSourcesMetadata.length === 0) {
+    if (!isNonEmptyString(workspace.databaseSchema)) {
       return new GraphQLSchema({});
     }
 

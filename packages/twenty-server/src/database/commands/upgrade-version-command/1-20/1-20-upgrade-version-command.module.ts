@@ -3,6 +3,7 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 
 import { BackfillCommandMenuItemsCommand } from 'src/database/commands/upgrade-version-command/1-20/1-20-backfill-command-menu-items.command';
 import { BackfillNavigationMenuItemTypeCommand } from 'src/database/commands/upgrade-version-command/1-20/1-20-backfill-navigation-menu-item-type.command';
+import { BackfillWorkspaceDatabaseSchemaCommand } from 'src/database/commands/upgrade-version-command/1-20/1-20-backfill-workspace-database-schema.command';
 import { BackfillPageLayoutsAndFieldsWidgetViewFieldsCommand } from 'src/database/commands/upgrade-version-command/1-20/1-20-backfill-page-layouts-and-fields-widget-view-fields.command';
 import { BackfillSelectFieldOptionIdsCommand } from 'src/database/commands/upgrade-version-command/1-20/1-20-backfill-select-field-option-ids.command';
 import { DeleteOrphanNavigationMenuItemsCommand } from 'src/database/commands/upgrade-version-command/1-20/1-20-delete-orphan-navigation-menu-items.command';
@@ -74,6 +75,7 @@ import { WorkflowCommonModule } from 'src/modules/workflow/common/workflow-commo
     MigrateMessagingInfrastructureToMetadataCommand,
     UpdateStandardIndexViewNamesCommand,
     MakeWorkflowSearchableCommand,
+    BackfillWorkspaceDatabaseSchemaCommand,
   ],
   exports: [
     IdentifyPermissionFlagMetadataCommand,
@@ -92,6 +94,7 @@ import { WorkflowCommonModule } from 'src/modules/workflow/common/workflow-commo
     MigrateMessagingInfrastructureToMetadataCommand,
     UpdateStandardIndexViewNamesCommand,
     MakeWorkflowSearchableCommand,
+    BackfillWorkspaceDatabaseSchemaCommand,
   ],
 })
 export class V1_20_UpgradeVersionCommandModule {}

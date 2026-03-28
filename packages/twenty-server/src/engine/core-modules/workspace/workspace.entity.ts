@@ -236,10 +236,6 @@ export class WorkspaceEntity {
 
   @Field()
   @Column({ default: '' })
-  databaseUrl: string;
-
-  @Field()
-  @Column({ default: '' })
   databaseSchema: string;
 
   @Field()
