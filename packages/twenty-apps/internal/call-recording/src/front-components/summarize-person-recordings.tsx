@@ -6,7 +6,7 @@ import {
   SUMMARIZE_PERSON_RECORDINGS_FRONT_COMPONENT_UNIVERSAL_IDENTIFIER,
 } from 'src/constants/summarize-person-recordings-universal-identifiers';
 import { defineFrontComponent, useRecordId } from 'twenty-sdk';
-import { CoreApiClient } from 'twenty-sdk/clients';
+import { CoreApiClient } from 'twenty-client-sdk/core';
 import { isDefined } from 'twenty-shared/utils';
 
 const SUMMARIZATION_SYSTEM_PROMPT = [

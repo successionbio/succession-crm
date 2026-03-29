@@ -841,6 +841,23 @@ export class WorkspaceMigrationBuildOrchestratorService {
           optimisticAllFlatEntityMaps.flatFieldMetadataMaps,
       });
 
+    // Split field creates: fields on newly-created objects must be processed
+    // first (to populate their tables with columns like 'id') before FK fields
+    // on existing objects can reference them.
+    const newObjectIds = new Set(
+      aggregatedOrchestratorActionsReport.objectMetadata.create.map(
+        (action) => action.flatEntity?.id,
+      ).filter(isDefined),
+    );
+    const fieldCreatesOnNewObjects =
+      aggregatedOrchestratorActionsReport.fieldMetadata.create.filter(
+        (action) => newObjectIds.has(action.flatEntity?.objectMetadataId),
+      );
+    const fieldCreatesOnExistingObjects =
+      aggregatedOrchestratorActionsReport.fieldMetadata.create.filter(
+        (action) => !newObjectIds.has(action.flatEntity?.objectMetadataId),
+      );
+
     return {
       status: 'success',
       workspaceMigration: {
@@ -853,7 +870,8 @@ export class WorkspaceMigrationBuildOrchestratorService {
           ...aggregatedOrchestratorActionsReport.objectMetadata.delete,
           ...aggregatedOrchestratorActionsReport.objectMetadata.create,
           ...aggregatedOrchestratorActionsReport.objectMetadata.update,
-          ...aggregatedOrchestratorActionsReport.fieldMetadata.create,
+          ...fieldCreatesOnNewObjects,
+          ...fieldCreatesOnExistingObjects,
           ...aggregatedOrchestratorActionsReport.fieldMetadata.update,
           ...aggregatedOrchestratorActionsReport.index.create,
           ...aggregatedOrchestratorActionsReport.index.update.flat(),

@@ -55,6 +55,7 @@ const fetchComponentSource = async (
 const SDK_IMPORT_SPECIFIERS = [
   'twenty-client-sdk/core',
   'twenty-client-sdk/metadata',
+  'twenty-sdk/clients',
 ] as const;
 
 // Rewrites bare SDK import specifiers to the blob URLs provided by the host.
@@ -65,6 +66,7 @@ const rewriteSdkImports = (
   const specifierToBlobUrl: Record<string, string> = {
     'twenty-client-sdk/core': sdkClientUrls.core,
     'twenty-client-sdk/metadata': sdkClientUrls.metadata,
+    'twenty-sdk/clients': sdkClientUrls.core,
   };
 
   let rewritten = source;

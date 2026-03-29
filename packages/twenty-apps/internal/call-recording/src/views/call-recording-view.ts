@@ -8,8 +8,10 @@ export const CALL_RECORDING_VIEW_UNIVERSAL_IDENTIFIER =
 
 export default defineView({
   universalIdentifier: CALL_RECORDING_VIEW_UNIVERSAL_IDENTIFIER,
-  name: 'Call recordings',
+  name: 'All {objectLabelPlural}',
   objectUniversalIdentifier: CALL_RECORDING_OBJECT_UNIVERSAL_IDENTIFIER,
+  type: 'TABLE' as any,
+  key: 'INDEX' as any,
   icon: 'IconPhone',
   position: 0,
   fields: [

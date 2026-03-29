@@ -17,6 +17,7 @@ import { FileFolder } from 'twenty-shared/types';
 export const LOGIC_FUNCTION_EXTERNAL_MODULES: string[] = [
   'twenty-client-sdk/core',
   'twenty-client-sdk/metadata',
+  'twenty-sdk/clients',
   'path',
   'fs',
   'crypto',
