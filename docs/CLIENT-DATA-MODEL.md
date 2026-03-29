@@ -2158,6 +2158,95 @@ Each marketing function uses the best available OSS tool, with all UI surfaced t
 
 ---
 
+## App Architecture (Phase 2+)
+
+### Concept
+
+Instead of one monolithic data model installed on every CRM instance, package features into **installable Twenty apps** by function. Each app ships with its own objects, fields, workflows, dashboards, and UI components. Clients install what they need.
+
+Twenty's custom apps framework (alpha) supports: custom objects/fields, logic functions (HTTP routes, crons, DB event triggers), React UI components, navigation items, and roles. Since we own the fork, **we can extend the app framework itself** if it has gaps — add support for bundling workflows, creating dashboards on install, or anything else we need. Contributions can be offered upstream.
+
+### Proposed App Packages
+
+**Succession Sales** (base — ships with every instance)
+- Objects: Company, Person, Opportunity custom fields, Campaign, Campaign Membership, Sequence
+- Workflows: Auto-enrichment, ICP qualifier, deal stage automation, campaign launcher
+- Dashboards: Pipeline view, campaign performance
+- Views: Active pipeline, my leads, enrichment queue
+- Manual workflows: Enrich contact, qualify company, build list, write messaging, launch campaign
+
+**Succession Intelligence** (base — ships with every instance)
+- Objects: Signal, Event Bookmark, Suggested Action
+- Workflows: Signal outreach suggester, stale deal nudger, campaign alerter, lead recycler, snooze resurfacer
+- Dashboards: Signal feed, ICP match report, action queue
+- Views: Action Queue (Suggested Actions, status = New)
+
+**Succession Meetings** (base or add-on)
+- Objects: Meeting (expanded fields for AI notes, recording, transcripts)
+- Workflows: Pre-call brief, meeting follow-up drafter, no-show recovery
+- Integrations: Cal.com webhook handler, Recall.ai webhook handler
+- Dashboards: Meeting activity, action items, outcome trends
+
+**Succession Context Engine** (base — core to all AI features)
+- Objects: Company Profile, Persona, Product, Case Study
+- Onboarding flow: guided profile setup wizard
+- Used by every other app for AI personalization
+
+**Succession BD & Licensing** (vertical app — optional)
+- Objects: custom fields for licensing deals (territory rights, exclusivity, milestone payments, royalty rates)
+- Workflows: licensing deal stage automation, milestone tracker, territory conflict checker
+- Dashboards: licensing pipeline, territory map, royalty projections
+- Personas: pre-built BD-specific personas (VP BD, Head of Licensing, CBO)
+
+**Succession Clinical** (vertical app — future)
+- Objects: Clinical trial tracking, investigator site management, regulatory milestone tracking
+- Workflows: trial status change alerts, site activation checklist, regulatory filing reminders
+- Dashboards: trial pipeline, site map, regulatory timeline
+
+**Succession Marketing** (Phase 3+ add-on)
+- Objects: lead scoring fields, web tracking fields, marketing email stats
+- Workflows: scoring calculations, nurture triggers, segment-based sends
+- Integrations: Dittofeed/marketing engine connector
+- Dashboards: marketing funnel, lead scoring distribution, email performance
+
+### Why Apps > Monolithic
+
+| Benefit | How |
+|---------|-----|
+| **Modular pricing** | Free tier = Sales + Intelligence. Paid = + Meetings + Marketing. Vertical apps = premium. |
+| **Clean CRM** | Client only sees objects/fields relevant to installed apps. No 150-field sprawl. |
+| **Independent development** | Each app built, tested, shipped separately. Doesn't block other apps. |
+| **Vertical expansion** | BD & Licensing, Clinical, Regulatory — each vertical is a new app, not a CRM overhaul. |
+| **Client choice** | "Install what you need." Feels like a platform, not a one-size-fits-all tool. |
+| **Marketplace potential** | Long-term: third parties could build Succession apps. |
+
+### App Framework Gaps to Investigate / Extend
+
+Twenty's app framework is alpha. During dogfooding, verify and extend as needed:
+
+| Capability | Status in Twenty | If gap, our fix |
+|-----------|-----------------|-----------------|
+| Create custom objects/fields on install | Likely supported (entity definitions in TypeScript) | Verify during dogfooding |
+| Bundle pre-configured workflows | Unclear — may need API calls on install, not declarative bundling | Extend app framework: add `workflows/` directory to app spec, auto-create via `create_complete_workflow` on install |
+| Create dashboards on install | Unclear — "front components" exist but dashboard integration TBD | Extend: add `dashboards/` directory to app spec, auto-create via dashboard API on install |
+| Add navigation menu items | Supported in SDK | — |
+| React UI components | Supported in SDK | — |
+| App install/uninstall lifecycle hooks | Supported (`pre-install`, `post-install` hooks) | Use hooks to create workflows/dashboards if declarative isn't available |
+| App versioning + updates | Exists but maturity unclear | Verify. May need to build migration logic per app version. |
+| Data cleanup on uninstall | Unclear — what happens to objects/data when app is removed? | Probably: deactivate objects (hide), don't delete data. Let client re-install without data loss. |
+
+**Key principle:** Since we own the fork, any gap in the app framework is fixable. We extend Twenty's app system to support our needs, keep changes clean and upstream-compatible, and contribute back where it makes sense.
+
+### Rollout
+
+| Phase | What |
+|-------|------|
+| Phase 1 (dogfooding) | Monolithic data model — all objects/fields installed together via migration script |
+| Phase 2 (first clients) | Refactor into app packages. Sales + Intelligence + Context Engine are the base. Meetings is a toggle. |
+| Phase 3 (scale) | Marketing app, vertical apps (BD & Licensing), app marketplace concept |
+
+---
+
 ## Future Considerations
 
 - **Sequence Editor UI** — Replace `stepsJson` TEXT field with a visual step editor component in the CRM
@@ -2170,6 +2259,8 @@ Each marketing function uses the best available OSS tool, with all UI surfaced t
 - **Mobile experience** — PWA or native app when Twenty's mobile support matures
 - **AI-powered pipeline forecasting** — Use meeting outcomes, signal data, and campaign engagement to predict deal close probability
 - **Dashboard marketplace** — Library of pre-built dashboard templates users can one-click install
+- **Vertical app library** — BD & Licensing, Clinical, Regulatory, Manufacturing — each as an installable app
+- **Third-party app marketplace** — Allow other companies to build and distribute Succession apps
 
 ---
 
@@ -2183,3 +2274,4 @@ Each marketing function uses the best available OSS tool, with all UI surfaced t
 | 2026-03-28 | Comprehensive field expansion | Added forecasting, attribution, scoring, engagement tracking, hidden fields for reporting |
 | 2026-03-28 | Marketing: Mautic → composable architecture | Dittofeed preferred for campaigns, best-of-breed OSS tools for each function, all embedded in Twenty |
 | 2026-03-28 | Added Dashboard Builder Skill | AI-powered dashboard creation from natural language |
+| 2026-03-29 | Added App Architecture | Modular app packages (Sales, Intelligence, Meetings, Marketing, vertical apps), framework gaps to extend |

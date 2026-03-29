@@ -658,20 +658,133 @@ Trigger enrichment on a test Person and verify new fields (`enrichmentSource`, `
 
 ---
 
+## Phase 8: Build Meetings as a Twenty App
+
+This is our first test of the app architecture pattern. The Meeting object, its workflows, and its integrations get packaged as a standalone Twenty app instead of being part of the monolithic schema migration.
+
+### 8.1 Scaffold the app
+
+```bash
+cd ~/Documents/Claude\ Code/succession-crm
+npx create-twenty-app packages/succession-meetings-app
+```
+
+### 8.2 App structure
+
+```
+packages/succession-meetings-app/
+├── src/
+│   ├── objects/
+│   │   └── meeting.ts          # Meeting object definition + all custom fields
+│   ├── logic/
+│   │   ├── pre-call-brief.ts   # Triggered by calendar event → generates brief
+│   │   ├── meeting-followup.ts # Triggered by meeting created (positive/neutral) → drafts follow-up
+│   │   ├── no-show-recovery.ts # Triggered by meeting created (no show) → recovery sequence
+│   │   └── recall-webhook.ts   # HTTP route: receives Recall.ai webhook → creates Meeting + AI notes
+│   ├── components/
+│   │   └── MeetingBrief.tsx    # React component: renders pre-call brief on Person record
+│   └── index.ts                # App entry: registers objects, logic functions, components
+├── package.json
+└── twenty-app.json             # App manifest: name, version, description, icon
+```
+
+### 8.3 What the app creates on install
+
+**Meeting object with fields:**
+- `meetingDate` (DATE_TIME)
+- `duration` (NUMBER)
+- `meetingType` (SELECT: Discovery, Demo, Proposal Review, Follow-Up, Negotiation, Onboarding, QBR, Other)
+- `summary` (TEXT) — AI-generated, context-aware
+- `actionItems` (TEXT) — AI-extracted
+- `outcome` (SELECT: Positive, Neutral, Negative, No Show)
+- `nextSteps` (TEXT)
+- `competitorsMentioned` (TEXT)
+- `buyingSignals` (TEXT)
+- `recordingUrl` (TEXT)
+- `transcriptUrl` (TEXT)
+- `calendarEventId` (TEXT) — hidden
+- `recallBotId` (TEXT) — hidden
+- `isRecorded` (BOOLEAN) — hidden
+- `isTranscribed` (BOOLEAN) — hidden
+- `aiProcessedAt` (DATE_TIME) — hidden
+- `preCallBriefGenerated` (BOOLEAN) — hidden
+- `attendeeEmails` (TEXT) — hidden
+- `meetingSource` (SELECT: Cal.com, Google Calendar, Outlook, Manual) — hidden
+- `noShowFollowUpSent` (BOOLEAN) — hidden
+
+**Relations:**
+- Meeting → Person (many-to-one)
+- Meeting → Company (many-to-one)
+- Meeting → Opportunity (many-to-one)
+- Meeting → Campaign (many-to-one, optional)
+
+**Logic functions (workflows):**
+
+| Function | Trigger | What it does |
+|----------|---------|-------------|
+| `pre-call-brief` | Database event: Calendar Event created with external participant | Gathers Person + Company + Opportunity + Company Profile context → AI Agent generates brief → creates Note on Person |
+| `meeting-followup` | Database event: Meeting created with outcome = Positive or Neutral | Waits 2hrs → gathers context → AI generates follow-up draft → creates Suggested Action + Gmail/Outlook draft (if connected) |
+| `no-show-recovery` | Database event: Meeting created with outcome = No Show | Generates recovery message → creates Suggested Action. After 3 days, creates reschedule Suggested Action if no stage change. |
+| `recall-webhook` | HTTP route: `POST /app/succession-meetings/recall` | Receives Recall.ai callback → matches attendees to Person records → gathers CRM context → AI processes transcript → creates Meeting record with AI notes + action items → creates Tasks → updates Opportunity if recommended |
+
+**React component:**
+- `MeetingBrief` — renders the pre-call brief inline on the Person record detail page. Shows: company context, ICP fit, last interactions, talking points, relevant products/case studies, open action items.
+
+### 8.4 What this tests
+
+| App framework capability | What we learn |
+|--------------------------|--------------|
+| Object creation on install | Does the Meeting object get created with all fields and relations when the app is installed? |
+| Logic function triggers | Do database event triggers fire correctly? Do HTTP routes work? |
+| React components | Does MeetingBrief render inline on the Person record page? |
+| AI Agent integration | Can logic functions call the AI Agent (Claude) for brief/note generation? |
+| Cross-object relations | Does Meeting properly link to Person, Company, Opportunity, Campaign? |
+| Install/uninstall lifecycle | What happens to Meeting data if the app is uninstalled? Can it be reinstalled cleanly? |
+| Workflow equivalence | Are logic functions as capable as native Twenty workflows for our use cases? |
+
+### 8.5 What to do if the app framework has gaps
+
+Since we own the fork, we can extend Twenty's app framework:
+
+| Gap | Our fix |
+|-----|---------|
+| Can't create workflows from app | Add `workflows/` directory to app spec — auto-create via `create_complete_workflow` API in the post-install hook |
+| Can't create dashboards from app | Add `dashboards/` directory to app spec — auto-create via dashboard API in post-install hook |
+| Logic functions can't call AI Agent | Route through Platform API HTTP request from the logic function (same as workflow HTTP Request action) |
+| Can't hide fields by default | Add field visibility config to the object definition (`hidden: true` flag) |
+| No app settings/config UI | Build a settings page as a React component, store config in a custom object or app metadata |
+
+Document every gap found and the workaround used. This becomes the blueprint for packaging all other apps.
+
+### 8.6 Migration plan adjustment
+
+The Meeting object in Phase 1.6 of this migration plan (adding fields to the existing `meeting` object) is **replaced** by the app install in Phase 8. On our dogfood CRM:
+
+1. Run Phases 1.1-1.5 (Company, Person, Opportunity, Campaign, Campaign Membership) via the migration script as planned
+2. Run Phases 1.7-1.8 (Context Engine updates + new objects: Sequence, Signal, EventBookmark, SuggestedAction) via the migration script
+3. **Skip Phase 1.6** (Meeting fields) — the Meetings app handles this
+4. Install the Succession Meetings app → Meeting object gets created/updated with all new fields
+5. Verify the existing `meeting` records (Granola sync data) are preserved and the new fields are added alongside
+
+If the app install can't handle updating an existing object (only creating new ones), fall back to Phase 1.6 migration script for the fields and use the app only for the logic functions and React components.
+
+---
+
 ## Execution Timeline
 
 | Phase | Effort | Dependencies |
 |-------|--------|-------------|
 | Phase 0: Preparation | 30 min | None |
-| Phase 1: Schema migration script | 2-3 hrs | None |
+| Phase 1: Schema migration script (excl. Meeting) | 2-3 hrs | None |
 | Phase 2: Data migration script | 1 hr | Phase 1 complete |
 | Phase 3: Sync script updates | 2 hrs | Phase 1 complete (can parallel with Phase 2) |
 | Phase 4: Hide internal fields | 30 min | Phases 2 + 3 tested |
 | Phase 5: Reconcile setup scripts | 1 hr | Phase 1 complete |
 | Phase 6: Seed our data | 1 hr | Phases 1-3 complete |
 | Phase 7: Validation | 1 hr | All phases complete |
+| Phase 8: Build + install Meetings app | 3-4 hrs | Phase 1 complete (can parallel with 2-5) |
 
-**Total: ~1 day of execution.**
+**Total: ~1.5 days of execution.** Phase 8 can run in parallel with most other phases.
 
 ---
 
@@ -683,5 +796,6 @@ If anything goes wrong:
 3. **Sync scripts dual-write** — revert to old sync scripts if new field writes cause issues.
 4. **Hidden fields can be unhidden** — just set `isActive: true` again.
 5. **Backup data** from Phase 0 can be re-imported via REST API.
+6. **Meetings app can be uninstalled** — if the app causes issues, uninstall it and fall back to the Phase 1.6 migration script for Meeting fields.
 
 No destructive operations in this migration. Everything is reversible.
