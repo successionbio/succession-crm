@@ -2228,6 +2228,32 @@ Each marketing function uses the best available OSS tool, with all UI surfaced t
 
 ## App Architecture (Phase 2+)
 
+### Existing Twenty App Ecosystem
+
+Twenty already has **11 community apps** and **2 internal apps**. Several are directly relevant to our platform and can be used, extended, or forked:
+
+**High relevance — use or extend:**
+
+| App | What it does | How we use it |
+|-----|-------------|---------------|
+| **call-recording** (internal) | Full call recording system: `callRecording` object, media player, transcript viewer with time sync, AI summarization, Person/WorkspaceMember relations, React components | **Extend into our Meetings app.** Already has the object, player, transcript viewer. We add: pre-call brief, Recall.ai webhook, Suggested Action creation, context-aware AI notes, Opportunity/Campaign relations. |
+| **fireflies** | Fireflies.ai webhook integration, auto-contact creation, retry logic, sentiment analysis | **Reference pattern** for Recall.ai integration. Same webhook → process → create record pattern. |
+| **apollo-enrich** | Enrich companies via Apollo API on update. Full OAuth flow with React component. Creates custom fields. | **Reference pattern** for our enrichment integration. Shows OAuth flow + field creation + database trigger pattern. |
+| **rollup-engine** | Auto-calculates aggregates on Company from Opportunities (total pipeline, won deals, deal count). Configurable. | **Install directly.** Handles our `totalOpenDeals`, `totalDealValue`, `totalContacts` auto-calculated fields. |
+| **last-email-interaction** | Tracks interaction recency per Person/Company. Status: Recent (<7d), Active (<30d), Cooling (<90d), Dormant (>90d). | **Install directly.** Maps to our engagement tracking concept. Could extend with our scoring logic. |
+
+**Moderate relevance — install for reference:**
+
+| App | What it does | Notes |
+|-----|-------------|-------|
+| **ai-meeting-transcript** | Webhook receives transcript → OpenAI extracts summary/action items → creates Note | Simpler version of call-recording. Good reference for AI processing pattern. |
+| **meeting-transcript** | Similar but creates Tasks with assignee matching (fuzzy name match to workspace members) | Shows task auto-assignment from meetings. |
+| **stripe-synchronizer** | Stripe webhooks → subscription tracking fields on Company/Person | Relevant for our billing integration. |
+| **mailchimp-synchronizer** | Bidirectional Mailchimp sync (contacts, lists, segments) | Reference for marketing tool sync pattern. |
+| **webmetic** | Website visitor tracking → creates custom `websiteLead` object via GraphQL on install | Shows how an app can create its own custom object at install time — important for our app architecture. |
+| **activity-summary** | Daily Slack/Discord/WhatsApp digest of CRM activity | Reference for our notification/digest system. |
+| **linkedin-browser-extension** | Browser extension captures LinkedIn profiles → creates People/Companies | Reference for LinkedIn data capture. |
+
 ### Concept
 
 Instead of one monolithic data model installed on every CRM instance, package features into **installable Twenty apps** by function. Each app ships with its own objects, fields, workflows, dashboards, and UI components. Clients install what they need.

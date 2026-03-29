@@ -658,34 +658,105 @@ Trigger enrichment on a test Person and verify new fields (`enrichmentSource`, `
 
 ---
 
-## Phase 8: Build Meetings as a Twenty App
+## Phase 8: Build Meetings App (extending call-recording)
 
-This is our first test of the app architecture pattern. The Meeting object, its workflows, and its integrations get packaged as a standalone Twenty app instead of being part of the monolithic schema migration.
+### Why Extend, Not Build From Scratch
 
-### 8.1 Scaffold the app
+Twenty's internal `call-recording` app already has:
+- `callRecording` object with recording file, transcript file, summary, status
+- React components: MediaPlayer (audio/video), TranscriptViewer (with time sync), SummaryViewer
+- Relations to Person and WorkspaceMember
+- AI summarization skill
+- Skeleton loaders, navigation items, views
+
+Instead of building a Meetings app from zero, we **fork `call-recording` into `succession-meetings`** and extend it with our context engine, Recall.ai integration, and Suggested Action workflows.
+
+### 8.1 Fork and rename
 
 ```bash
-cd ~/Documents/Claude\ Code/succession-crm
-npx create-twenty-app packages/succession-meetings-app
+cp -r packages/twenty-apps/internal/call-recording packages/twenty-apps/community/succession-meetings
+# Update package.json name, twenty-app.json metadata
 ```
 
-### 8.2 App structure
+### 8.2 What we keep from call-recording
+
+- `callRecording` object (rename to `meeting` or extend with additional fields)
+- MediaPlayer component (audio/video playback)
+- TranscriptViewer component (time-synced transcript display)
+- SummaryViewer component (rendered summary)
+- Person and WorkspaceMember relations
+- AI summarization skill (we'll enhance it)
+- Navigation menu item and views
+
+### 8.3 What we add
+
+**Additional fields on the meeting/callRecording object:**
+- `meetingType` (SELECT: Discovery, Demo, Proposal Review, Follow-Up, Negotiation, Onboarding, QBR, Other)
+- `outcome` (SELECT: Positive, Neutral, Negative, No Show)
+- `nextSteps` (TEXT)
+- `competitorsMentioned` (TEXT)
+- `buyingSignals` (TEXT)
+- `calendarEventId` (TEXT) — hidden
+- `recallBotId` (TEXT) — hidden
+- `meetingSource` (SELECT: Cal.com, Google Calendar, Outlook, Recall.ai, Manual) — hidden
+- `preCallBriefGenerated` (BOOLEAN) — hidden
+- `noShowFollowUpSent` (BOOLEAN) — hidden
+
+**Additional relations:**
+- Meeting → Opportunity (many-to-one)
+- Meeting → Campaign (many-to-one, optional)
+
+**New logic functions:**
+
+| Function | Trigger | What it does |
+|----------|---------|-------------|
+| `pre-call-brief` | Database event: Calendar Event created with external participant | Gathers Person + Company + Opportunity + Company Profile context → AI generates brief → creates Note on Person |
+| `meeting-followup` | Database event: Meeting created with outcome = Positive/Neutral | Waits 2hrs → gathers CRM context → AI generates follow-up draft → creates Suggested Action + Gmail/Outlook draft (if connected via Activepieces) |
+| `no-show-recovery` | Database event: Meeting created with outcome = No Show | Generates recovery message → creates Suggested Action. After 3 days, creates reschedule Suggested Action if no stage change. |
+| `recall-webhook` | HTTP route: `POST /app/succession-meetings/recall` | Receives Recall.ai callback → matches attendees to Person records → gathers full CRM context (Person, Company, Opportunity, Company Profile, previous meetings, campaign history) → AI processes transcript with context → creates Meeting record with context-aware notes + action items → creates Tasks → updates Opportunity if recommended → creates Suggested Actions for follow-ups |
+
+**Enhanced AI summarization:**
+The existing `call-transcript-summarization` skill gets upgraded. Instead of generic summarization, it receives a context packet:
+- Company Profile (ICP, products, value props, personas)
+- Person record (title, department, seniority, previous interactions)
+- Company record (industry, funding, ICP score)
+- Opportunity (deal stage, value)
+- Previous meetings (last summary, open action items)
+
+This produces context-aware output: references relevant products/case studies, flags competitor mentions against known competitors, detects buying signals against the ICP, and suggests specific next steps.
+
+**New React component:**
+- `MeetingBrief.tsx` — renders the pre-call brief inline on the Person record detail page. Shows: company context, ICP fit, previous interactions, talking points, relevant products/case studies, open action items from previous meetings.
+
+### 8.4 App structure
 
 ```
-packages/succession-meetings-app/
+packages/twenty-apps/community/succession-meetings/
 ├── src/
 │   ├── objects/
-│   │   └── meeting.ts          # Meeting object definition + all custom fields
+│   │   └── meeting.ts              # Extended from call-recording with new fields
+│   ├── fields/
+│   │   ├── meeting-on-person.ts    # Existing (from call-recording)
+│   │   ├── meeting-on-opportunity.ts  # NEW — relation to Opportunity
+│   │   └── meeting-on-campaign.ts  # NEW — relation to Campaign
 │   ├── logic/
-│   │   ├── pre-call-brief.ts   # Triggered by calendar event → generates brief
-│   │   ├── meeting-followup.ts # Triggered by meeting created (positive/neutral) → drafts follow-up
-│   │   ├── no-show-recovery.ts # Triggered by meeting created (no show) → recovery sequence
-│   │   └── recall-webhook.ts   # HTTP route: receives Recall.ai webhook → creates Meeting + AI notes
+│   │   ├── pre-call-brief.ts       # NEW — calendar event → context brief
+│   │   ├── meeting-followup.ts     # NEW — post-meeting draft + Suggested Action
+│   │   ├── no-show-recovery.ts     # NEW — no-show detection + recovery
+│   │   ├── recall-webhook.ts       # NEW — Recall.ai webhook handler
+│   │   └── end-recording.ts        # Existing (from call-recording)
+│   ├── skills/
+│   │   └── context-aware-summarization.ts  # Enhanced from call-recording
 │   ├── components/
-│   │   └── MeetingBrief.tsx    # React component: renders pre-call brief on Person record
-│   └── index.ts                # App entry: registers objects, logic functions, components
+│   │   ├── call-recording-viewer.tsx    # Existing (from call-recording)
+│   │   ├── call-recording-summary.tsx   # Existing
+│   │   └── meeting-brief.tsx            # NEW — pre-call brief component
+│   ├── views/
+│   │   └── meeting-view.ts         # Existing (from call-recording)
+│   └── navigation/
+│       └── meetings-nav.ts         # Renamed from call-recording nav
 ├── package.json
-└── twenty-app.json             # App manifest: name, version, description, icon
+└── application.config.ts
 ```
 
 ### 8.3 What the app creates on install
@@ -730,7 +801,47 @@ packages/succession-meetings-app/
 **React component:**
 - `MeetingBrief` — renders the pre-call brief inline on the Person record detail page. Shows: company context, ICP fit, last interactions, talking points, relevant products/case studies, open action items.
 
-### 8.4 What this tests
+### 8.4 Install existing community apps
+
+Before building our custom Meetings app, install these existing apps on our CRM instance to test the app framework and get immediate value:
+
+**Prerequisites:** Node 24+, Yarn 4.13+, monorepo dependencies installed, CRM added as remote.
+
+```bash
+cd ~/Documents/Claude\ Code/succession-crm
+
+# Set up dev environment (one-time)
+corepack enable
+yarn install
+yarn nx build twenty-sdk
+
+# Add CRM as remote
+yarn twenty remote add https://crm.succession.bio --token $TWENTY_API_KEY
+
+# Install apps
+cd packages/twenty-apps/internal/call-recording && yarn twenty install
+cd packages/twenty-apps/community/rollup-engine && yarn twenty install
+cd packages/twenty-apps/community/last-email-interaction && yarn twenty install
+cd packages/twenty-apps/community/activity-summary && yarn twenty install
+cd packages/twenty-apps/community/apollo-enrich && yarn twenty install
+cd packages/twenty-apps/community/fireflies && yarn twenty install
+cd packages/twenty-apps/community/ai-meeting-transcript && yarn twenty install
+cd packages/twenty-apps/community/meeting-transcript && yarn twenty install
+cd packages/twenty-apps/community/stripe-synchronizer && yarn twenty install
+cd packages/twenty-apps/community/mailchimp-synchronizer && yarn twenty install
+cd packages/twenty-apps/community/webmetic && yarn twenty install
+cd packages/twenty-apps/community/linkedin-browser-extension && yarn twenty install
+cd packages/twenty-apps/internal/self-hosting && yarn twenty install
+```
+
+**What we get immediately from installed apps:**
+- `call-recording`: the base for our Meetings app (object, components, AI summarization)
+- `rollup-engine`: auto-calculated Company aggregates (totalPipeline, wonDeals, etc.)
+- `last-email-interaction`: interaction recency tracking on Person/Company
+- `activity-summary`: daily Slack digest of CRM activity
+- Others: reference patterns for building our own integrations
+
+### 8.5 What this tests
 
 | App framework capability | What we learn |
 |--------------------------|--------------|
