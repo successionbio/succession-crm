@@ -827,11 +827,35 @@ Before building our custom Meetings app, install these existing apps on our CRM 
 
 **Marketplace status:** The Twenty marketplace catalog is hardcoded with only 2 apps (Data Enrichment mock + Hello World). Community apps are source code only — not published or discoverable from the CRM admin UI.
 
-**Next steps (dedicated session):**
-1. Set up full Twenty local dev server to enable `twenty dev` for app development
-2. Resolve `twenty-sdk/clients` generation for remote deployment
-3. Install apps one by one, starting with call-recording and rollup-engine
-4. Register our custom apps in the marketplace catalog for the fork
+**Next steps (first thing in next session):**
+
+1. Try `twenty dev` for call-recording — this command handles the full pipeline (generates typed clients from remote CRM schema, builds, syncs):
+   ```bash
+   eval "$(fnm env)" && fnm use 24
+   cd ~/Documents/Claude\ Code/succession-crm/packages/twenty-apps/internal/call-recording
+   node ../../twenty-sdk/dist/cli.cjs dev --remote succession-crm
+   ```
+
+2. If `twenty dev` works → install remaining apps one by one using the same flow
+
+3. If `twenty dev` fails on client generation → fallback: SSH to VPS, clone repo, run apps from the server where Twenty has full schema access:
+   ```bash
+   ssh root@139.59.187.100
+   cd /opt/twenty
+   # Clone apps, build and install from the server
+   ```
+
+4. Once install pipeline works for one app, the rest are mechanical — same steps repeated
+
+5. After all apps installed, register our custom Succession apps in the marketplace catalog (edit `marketplace-catalog-index.constant.ts` in our fork) so they're discoverable in the CRM UI
+
+**Priority order for installation:**
+1. `call-recording` (internal) — base for our Meetings app, tests full app framework
+2. `rollup-engine` — immediate value (auto-calculated Company aggregates)
+3. `last-email-interaction` — interaction recency tracking
+4. `activity-summary` — daily Slack digest
+5. `apollo-enrich` — reference for our enrichment pattern
+6. Everything else — install and evaluate
 
 ```bash
 # What's already done:
