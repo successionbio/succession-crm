@@ -1481,6 +1481,74 @@ Fair use cap will be refined based on actual usage data from dogfooding and earl
 
 ---
 
+## Database Access & Tier Gating
+
+### Principle: Gate at the API, Not the UI
+
+The life science database lives behind the **Platform API**, not inside the CRM. The CRM and MCP are clients of the API. The API checks the user's tier on every request and controls what data is returned. This means one CRM codebase, one MCP — the API decides what flows through.
+
+**No data is masked on the frontend — restricted data is never sent from the backend.** A free-tier API key physically cannot receive email addresses, phone numbers, or LinkedIn URLs. There's nothing to intercept.
+
+### What Each Tier Can See and Do
+
+| Action | Free | Paid (£500/mo) | DFY |
+|--------|------|----------------|-----|
+| Search the database | Yes | Yes | Yes |
+| See company names, industry, size, location | Yes | Yes | Yes |
+| See people names and titles | Yes | Yes | Yes |
+| See emails, phone numbers, LinkedIn URLs | No (not sent by API) | Yes | Yes |
+| Export / download results | No | Yes | Yes |
+| "Add to CRM" (import record) | No | Yes | Yes |
+| Enrich a contact (third-party lookup) | No | Yes (fair use) | Unlimited |
+| See publication data | Titles only | Full | Full |
+| See signal/event data | Headlines only | Full details + source URLs | Full |
+| ICP-matched company suggestions | See count + names | Full details + act on them | Full |
+
+### Platform API Enforcement
+
+Every endpoint checks the API key's tier before responding:
+
+```
+GET /database/search
+  → tier = free: return results with contact fields stripped
+  → tier = paid: return full results
+
+POST /database/export
+  → tier = free: 403 "Upgrade to export"
+  → tier = paid: return CSV/JSON
+
+POST /database/add-to-crm
+  → tier = free: 403 "Upgrade to add contacts to your CRM"
+  → tier = paid: create Person/Company in their workspace
+
+POST /database/enrich
+  → tier = free: 403 "Upgrade to enrich"
+  → tier = paid: run enrichment, meter usage
+```
+
+### CRM UI Behavior by Tier
+
+The database browse component (Twenty custom app) reads the user's tier on load and renders accordingly:
+
+- **Free:** Results show company/person cards. Email fields display as `••••@••••.com` or a lock icon. "Add to CRM" button replaced with "Upgrade to unlock." Export button disabled. The experience is a preview — see what's available, can't act on it.
+- **Paid:** Full data visible. All action buttons enabled. Export available.
+
+### MCP Tool Behavior by Tier
+
+The MCP checks tier on startup via `GET /auth/verify` and adjusts:
+
+- **Free:** `db_search_companies` and `db_search_people` return masked results. `db_export`, `enrich_person`, `enrich_batch` tools are not registered (invisible to the user).
+- **Paid:** All tools registered, full data returned.
+
+### Why This Approach
+
+- One CRM codebase for all tiers (no separate free/paid builds)
+- One MCP for all tiers (tools dynamically enabled/disabled)
+- Security enforcement at the API layer — UI is convenience, not the gate
+- Free users get a real taste of the database (the upgrade trigger is seeing valuable companies they can't act on)
+
+---
+
 ## Auth & Identity
 
 ### Client Authentication Flow
