@@ -807,31 +807,42 @@ Before building our custom Meetings app, install these existing apps on our CRM 
 
 **Prerequisites:** Node 24+, Yarn 4.13+, monorepo dependencies installed, CRM added as remote.
 
+**Dev environment status (as of 2026-03-29):**
+- ✅ Node 24.14.1 installed via fnm
+- ✅ Yarn 4.13.0 via corepack
+- ✅ Monorepo deps installed (`yarn install`)
+- ✅ Twenty SDK built (`vite build --config vite.config.node.ts`)
+- ✅ CRM added as remote (`twenty remote add` → succession-crm authenticated)
+- ❌ App installation blocked — `twenty-sdk/clients` subpath not resolvable for new-format apps (call-recording, apollo-enrich). Old-format apps (9 of 13) need the legacy serverless deployment path.
+
+**Current blocker:** The `twenty-sdk/clients` import is auto-generated per workspace during the full build pipeline. Local builds from the monorepo fail because this module doesn't exist at build time. Resolution options:
+1. Run a local Twenty dev server that generates the typed client on the fly
+2. Publish apps as npm packages and install via marketplace registration
+3. Manually generate the typed client from our CRM's GraphQL schema
+4. Use the `twenty dev` command which handles the client generation (requires local server)
+
+**App format inventory:**
+- New format (`defineApplication()`): call-recording, apollo-enrich — **blocked on build**
+- Old format (`application.config.ts` + `serverlessFunctions/`): 9 apps — **need legacy deploy path**
+
+**Marketplace status:** The Twenty marketplace catalog is hardcoded with only 2 apps (Data Enrichment mock + Hello World). Community apps are source code only — not published or discoverable from the CRM admin UI.
+
+**Next steps (dedicated session):**
+1. Set up full Twenty local dev server to enable `twenty dev` for app development
+2. Resolve `twenty-sdk/clients` generation for remote deployment
+3. Install apps one by one, starting with call-recording and rollup-engine
+4. Register our custom apps in the marketplace catalog for the fork
+
 ```bash
+# What's already done:
+eval "$(fnm env)" && fnm use 24
 cd ~/Documents/Claude\ Code/succession-crm
+# yarn install already complete
+# SDK built at packages/twenty-sdk/dist/
 
-# Set up dev environment (one-time)
-corepack enable
-yarn install
-yarn nx build twenty-sdk
-
-# Add CRM as remote
-yarn twenty remote add https://crm.succession.bio --token $TWENTY_API_KEY
-
-# Install apps
-cd packages/twenty-apps/internal/call-recording && yarn twenty install
-cd packages/twenty-apps/community/rollup-engine && yarn twenty install
-cd packages/twenty-apps/community/last-email-interaction && yarn twenty install
-cd packages/twenty-apps/community/activity-summary && yarn twenty install
-cd packages/twenty-apps/community/apollo-enrich && yarn twenty install
-cd packages/twenty-apps/community/fireflies && yarn twenty install
-cd packages/twenty-apps/community/ai-meeting-transcript && yarn twenty install
-cd packages/twenty-apps/community/meeting-transcript && yarn twenty install
-cd packages/twenty-apps/community/stripe-synchronizer && yarn twenty install
-cd packages/twenty-apps/community/mailchimp-synchronizer && yarn twenty install
-cd packages/twenty-apps/community/webmetic && yarn twenty install
-cd packages/twenty-apps/community/linkedin-browser-extension && yarn twenty install
-cd packages/twenty-apps/internal/self-hosting && yarn twenty install
+# CRM remote configured:
+node packages/twenty-sdk/dist/cli.cjs remote list
+# * succession-crm  https://crm.succession.bio  [api-key]
 ```
 
 **What we get immediately from installed apps:**
